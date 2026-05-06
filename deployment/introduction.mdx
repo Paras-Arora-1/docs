@@ -1,0 +1,42 @@
+---
+title: "Deployment overview"
+description: "Ways to run Aperium in your environment."
+icon: "rocket"
+---
+
+Aperium runs on Google Cloud through a Terraform, ArgoCD, and Helm setup against a GKE Autopilot cluster, or on an on-premises Kubernetes cluster with a local model server. Pick the path that matches your hosting model and security boundary.
+
+<Columns cols={2}>
+  <Card title="Requirements" icon="list-check" href="/deployment/requirements">
+    Runtimes and services Aperium depends on.
+  </Card>
+  <Card title="Google Cloud" icon="cloud" href="/deployment/gcp/overview">
+    Deploy the prod-style topology on GKE Autopilot.
+  </Card>
+  <Card title="On-prem Kubernetes" icon="server" href="/deployment/on-prem/overview">
+    Run inside your network boundary with in-cluster MCP services and a local LLM.
+  </Card>
+  <Card title="Configuration" icon="gear" href="/deployment/configuration">
+    Environment variables for backend and frontend.
+  </Card>
+</Columns>
+
+## Picking a path
+
+- **Google Cloud.** The supported cloud production deployment, deployed with Terraform, ArgoCD, and Helm against a [GKE Autopilot cluster](/deployment/gcp/overview).
+- **On-prem Kubernetes.** A Kubernetes cluster you own, running Aperium with each enabled connector exposed as an in-cluster HTTP MCP service and the primary LLM served locally inside your network boundary. See [On-prem overview](/deployment/on-prem/overview) for the requirements contract.
+
+## GCP vs. on-prem at a glance
+
+The two paths share the same in-cluster application shape: Aperium frontend, backend, document worker, optional scheduler and cleanup jobs, in-cluster MCP services, and the supporting data services. They differ in what backs the platform:
+
+| Layer | Google Cloud | On-prem Kubernetes |
+| --- | --- | --- |
+| Cluster | GKE Autopilot | Your own Kubernetes cluster |
+| Database | Cloud SQL | Managed or operator-owned PostgreSQL |
+| Secrets | Secret Manager + External Secrets | Vault, External Secrets, Sealed Secrets, or approved Kubernetes Secret flow |
+| File storage | GCS bucket | RWX PVC or supported object-store replacement |
+| Ingress / WAF | GKE Gateway + Cloud Armor | Ingress controller, internal LB, WAF, firewall policy |
+| Image registry | Artifact Registry | Private registry mirrored inside your network boundary |
+| Identity | Workload Identity | Kubernetes service accounts plus your IAM/RBAC |
+| LLM | Cloud-hosted providers | Local OpenAI-compatible model server inside your network boundary |

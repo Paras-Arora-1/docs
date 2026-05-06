@@ -1,0 +1,37 @@
+podLabels:
+  keda:
+    owner: data-ai
+  metricsAdapter:
+    owner: data-ai
+  webhooks:
+    owner: data-ai
+
+# KEDA prod overrides (match GKE Autopilot adjustments)
+resources:
+  operator:
+    limits:
+      cpu: 1
+      memory: 1000Mi
+      ephemeral-storage: 1Gi
+    requests:
+      cpu: 100m
+      memory: 103Mi
+      ephemeral-storage: 1Gi
+  metricServer:
+    limits:
+      cpu: 1
+      memory: 1000Mi
+      ephemeral-storage: 1Gi
+    requests:
+      cpu: 100m
+      memory: 103Mi
+      ephemeral-storage: 1Gi
+  webhooks:
+    limits:
+      cpu: 1
+      memory: 1000Mi
+      ephemeral-storage: 1Gi
+    requests:
+      cpu: 100m
+      memory: 103Mi
+      ephemeral-storage: 1Gi

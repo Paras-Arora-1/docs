@@ -1,0 +1,23 @@
+txtOwnerId: k8s-YOUR_GCP_PROJECT_ID
+
+provider:
+  name: google
+
+domainFilters:
+  - apps.YOUR_DOMAIN
+
+sources:
+  - service
+  - ingress
+  - gateway-httproute
+
+gatewayNamespace: gateway-infra
+
+serviceAccount:
+  annotations:
+    iam.gke.io/gcp-service-account: external-dns@YOUR_GCP_PROJECT_ID.iam.gserviceaccount.com
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 128Mi

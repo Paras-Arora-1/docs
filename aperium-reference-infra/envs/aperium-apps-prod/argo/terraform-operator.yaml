@@ -1,0 +1,30 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: terraform-operator
+  namespace: argo-cd
+spec:
+  project: tools
+  sources:
+    - chart: hcp-terraform-operator
+      repoURL: https://helm.releases.hashicorp.com
+      targetRevision: 2.11.2
+    - repoURL: https://github.com/YOUR_ORG/aperium-reference-infra.git
+      path: charts/terraform-agent-resources
+      targetRevision: main
+      helm:
+        valueFiles:
+          - $values/envs/aperium-apps-prod/values/tfc-agents.yaml
+    - repoURL: https://github.com/YOUR_ORG/aperium-reference-infra.git
+      targetRevision: main
+      ref: values
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: tfc-operator-system
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true

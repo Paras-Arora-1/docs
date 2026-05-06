@@ -1,126 +1,111 @@
 {
   "$schema": "https://mintlify.com/docs.json",
   "theme": "mint",
-  "name": "Mintlify Starter Kit",
+  "name": "Aperium Docs",
   "colors": {
-    "primary": "#16A34A",
-    "light": "#07C983",
-    "dark": "#15803D"
+    "primary": "#62ADD1",
+    "light": "#81BDDA",
+    "dark": "#4F8CA9"
   },
   "favicon": "/favicon.svg",
   "navigation": {
-    "tabs": [
+    "groups": [
       {
-        "tab": "Guides",
-        "groups": [
-          {
-            "group": "Getting started",
-            "pages": [
-              "index",
-              "quickstart",
-              "development"
-            ]
-          },
-          {
-            "group": "Customization",
-            "pages": [
-              "essentials/settings",
-              "essentials/navigation"
-            ]
-          },
-          {
-            "group": "Writing content",
-            "pages": [
-              "essentials/markdown",
-              "essentials/code",
-              "essentials/images",
-              "essentials/components",
-              "essentials/reusable-snippets"
-            ]
-          },
-          {
-            "group": "Agent ready",
-            "pages": [
-              "agent-ready/prompt",
-              "agent-ready/visibility",
-              "agent-ready/contextual",
-              "ai-tools/cursor",
-              "ai-tools/claude-code",
-              "ai-tools/windsurf"
-            ]
-          }
+        "group": "Overview",
+        "pages": [
+          "overview/introduction",
+          "overview/what-is-aperium"
         ]
       },
       {
-        "tab": "API reference",
-        "groups": [
+        "group": "Deployment",
+        "pages": [
+          "deployment/introduction",
+          "deployment/requirements",
           {
-            "group": "API documentation",
+            "group": "Google Cloud",
             "pages": [
-              "api-reference/introduction"
+              "deployment/gcp/overview",
+              "deployment/gcp/prerequisites",
+              "deployment/gcp/deployment-order",
+              "deployment/gcp/dependencies",
+              "deployment/gcp/secrets"
             ]
           },
           {
-            "group": "Endpoint examples",
+            "group": "On-prem Kubernetes",
             "pages": [
-              "api-reference/endpoint/get",
-              "api-reference/endpoint/create",
-              "api-reference/endpoint/delete",
-              "api-reference/endpoint/webhook"
+              "deployment/on-prem/overview",
+              "deployment/on-prem/configuration",
+              "deployment/on-prem/mcp-services",
+              "deployment/on-prem/local-llm",
+              "deployment/on-prem/security-observability",
+              "deployment/on-prem/gates"
             ]
-          }
+          },
+          "deployment/configuration"
+        ]
+      },
+      {
+        "group": "Admins",
+        "pages": [
+          "admins/getting-started",
+          {
+            "group": "Integrations",
+            "pages": [
+              "admins/integrations/overview",
+              {
+                "group": "Supported integrations",
+                "pages": [
+                  "admins/integrations/supported/overview",
+                  "admins/integrations/supported/google-workspace",
+                  "admins/integrations/supported/slack-workspace",
+                  "admins/integrations/supported/atlassian",
+                  "admins/integrations/supported/microsoft365",
+                  "admins/integrations/supported/odoo",
+                  "admins/integrations/supported/salesforce",
+                  "admins/integrations/supported/netsuite",
+                  "admins/integrations/supported/arena",
+                  "admins/integrations/supported/malbek",
+                  "admins/integrations/supported/epic",
+                  "admins/integrations/supported/prefect",
+                  "admins/integrations/supported/bigquery",
+                  "admins/integrations/supported/postgres",
+                  "admins/integrations/supported/gcs-datalake",
+                  "admins/integrations/supported/onyx"
+                ]
+              },
+              "admins/integrations/custom"
+            ]
+          },
+          "admins/access-control"
         ]
       }
-    ],
-    "global": {
-      "anchors": [
-        {
-          "anchor": "Documentation",
-          "href": "https://mintlify.com/docs",
-          "icon": "book-open-cover"
-        },
-        {
-          "anchor": "Blog",
-          "href": "https://mintlify.com/blog",
-          "icon": "newspaper"
-        }
-      ]
-    }
-  },
-  "logo": {
-    "light": "/logo/light.svg",
-    "dark": "/logo/dark.svg"
+    ]
   },
   "navbar": {
     "links": [
       {
         "label": "Support",
-        "href": "mailto:hi@mintlify.com"
+        "href": "mailto:support@aperium.ai"
       }
-    ],
-    "primary": {
-      "type": "button",
-      "label": "Dashboard",
-      "href": "https://dashboard.mintlify.com"
-    }
+    ]
   },
   "contextual": {
     "options": [
-     "copy",
-     "view",
-     "chatgpt",
-     "claude",
-     "perplexity",
-     "mcp",
-     "cursor",
-     "vscode"
-   ]
+      "copy",
+      "view",
+      "chatgpt",
+      "claude",
+      "perplexity",
+      "mcp",
+      "cursor",
+      "vscode"
+    ]
   },
   "footer": {
     "socials": {
-      "x": "https://x.com/mintlify",
-      "github": "https://github.com/mintlify",
-      "linkedin": "https://linkedin.com/company/mintlify"
+      "github": "https://github.com/aperium"
     }
   }
 }

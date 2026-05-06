@@ -1,0 +1,79 @@
+global:
+  security:
+    allowInsecureImages: true
+  prefect:
+    image:
+      repository: YOUR_GCP_REGION-docker.pkg.dev/YOUR_GCP_PROJECT_ID/dockerhub-remote/prefecthq/prefect
+
+server:
+  revisionHistoryLimit: 3
+  # Minimal scaffold keeps ingress disabled. Bootstrap via port-forward first,
+  # then update this URL if you expose Prefect publicly later.
+  uiConfig:
+    prefectUiApiUrl: http://localhost:4200/api
+  basicAuth:
+    enabled: true
+    existingSecret: prefect-admin-credentials
+  resources:
+    requests:
+      cpu: 1000m
+      memory: 2Gi
+    limits:
+      cpu: 2000m
+      memory: 4Gi
+  env:
+    - name: PREFECT_SERVER_DATABASE_SQLALCHEMY_POOL_SIZE
+      value: "30"
+    - name: PREFECT_SERVER_DATABASE_SQLALCHEMY_MAX_OVERFLOW
+      value: "60"
+    - name: PREFECT_SERVER_DATABASE_SQLALCHEMY_POOL_TIMEOUT
+      value: "60"
+  extraContainers:
+    - name: cloud-sql-proxy
+      image: gcr.io/cloud-sql-connectors/cloud-sql-proxy:2.14.1
+      args:
+        - "--private-ip"
+        - "--run-connection-test"
+        - "--auto-iam-authn"
+        - "--structured-logs"
+        - "--port=5432"
+        - "YOUR_GCP_PROJECT_ID:YOUR_GCP_REGION:YOUR_PREFECT_CLOUDSQL_INSTANCE"
+      securityContext:
+        runAsNonRoot: true
+      resources:
+        requests:
+          memory: 512Mi
+          cpu: 500m
+
+serviceAccount:
+  name: prefect-server
+  annotations:
+    iam.gke.io/gcp-service-account: prefect@YOUR_GCP_PROJECT_ID.iam.gserviceaccount.com
+
+redis:
+  enabled: true
+  image:
+    registry: YOUR_GCP_REGION-docker.pkg.dev
+    repository: YOUR_GCP_PROJECT_ID/dockerhub-remote/bitnamilegacy/redis
+  master:
+    resources:
+      limits:
+        cpu: 150m
+        memory: 192Mi
+        ephemeral-storage: 1Gi
+
+ingress:
+  enabled: false
+
+postgresql:
+  enabled: false
+
+# This holds the DB connection data for a Cloud SQL setup. The Cloud SQL user
+# is typically the Workload Identity-backed service account without the
+# `.gserviceaccount.com` suffix.
+secret:
+  username: prefect@YOUR_GCP_PROJECT_ID.iam
+  host: localhost
+  database: prefect
+  password: "not-really-used"
+  port: 5432

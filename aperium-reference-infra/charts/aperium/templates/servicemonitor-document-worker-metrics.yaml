@@ -1,0 +1,18 @@
+{{- $serviceMonitorCrdPresent := or (.Capabilities.APIVersions.Has "monitoring.coreos.com/v1") (.Capabilities.APIVersions.Has "monitoring.coreos.com/v1/ServiceMonitor") -}}
+{{- if and .Values.worker.enabled .Values.worker.metrics.enabled .Values.worker.metrics.serviceMonitor.enabled $serviceMonitorCrdPresent }}
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: {{ include "aperium.workerFullname" . }}-metrics
+  labels:
+    {{- include "aperium.workerLabels" . | nindent 4 }}
+spec:
+  endpoints:
+    {{- toYaml .Values.worker.metrics.serviceMonitor.endpoints | nindent 4 }}
+  namespaceSelector:
+    matchNames:
+      - {{ .Release.Namespace }}
+  selector:
+    matchLabels:
+      {{- include "aperium.workerSelectorLabels" . | nindent 6 }}
+{{- end }}

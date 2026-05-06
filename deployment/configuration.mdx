@@ -1,0 +1,38 @@
+---
+title: "Configuration"
+description: "Environment variables for the backend and frontend."
+icon: "gear"
+---
+
+Aperium is configured through `backend/.env` and `frontend/.env`. These env files cover **infrastructure-level settings** — server bind addresses, the database URL, identity-provider configuration, and the routing layer for in-cluster MCP services.
+
+<Note>
+  Connector credentials (Odoo, Salesforce, NetSuite, and so on) and OAuth client settings (Google Workspace, Slack, Atlassian, Microsoft 365) are **not** entered here. An admin enters them through the admin onboarding flow on first sign-in or through the Admin Console's MCP Servers tab afterward; Aperium stores them against the tenant. See [Supported integrations](/admins/integrations/supported/overview).
+</Note>
+
+## Backend
+
+Common backend variables include:
+
+- `HOST`, `PORT`, `APP_ENV`
+- `DATABASE_URL` for PostgreSQL
+- Multi-tenant identity via `AUTH_TENANTS_JSON` (preferred) or the legacy `OKTA_*` variables
+- The MCP routing pair per in-cluster connector: `MCP_SERVER_TRANSPORT_<connector>` and `MCP_SERVER_URL_<connector>` (these point the backend at the right in-cluster MCP pod; they do **not** carry credentials)
+
+{/* TODO: Confirm whether LLM provider API keys (ANTHROPIC_API_KEY, OPENAI_API_KEY, GOOGLE_API_KEY) are still backend-env-only or have moved into the admin UI alongside connector credentials. */}
+
+## Frontend
+
+The frontend reads URLs and identity-provider configuration from environment variables prefixed with `VITE_`:
+
+```bash
+VITE_API_URL=http://localhost:8080
+VITE_WEBSOCKET_URL=ws://localhost:8080/ws/chat
+VITE_FRONTEND_PORT=3002
+```
+
+## Reference
+
+For the canonical, up-to-date list of infrastructure variables, see the project README at `aperium-checkout-2/README.md`.
+
+{/* TODO: Mirror the README env section here once the variable set stabilizes. */}

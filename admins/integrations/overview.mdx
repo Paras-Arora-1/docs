@@ -1,0 +1,100 @@
+---
+title: "Overview"
+description: "How Aperium integrations work."
+icon: "plug"
+---
+
+## Connecting an integration
+
+The example below walks through connecting Google Workspace as an admin and then linking a personal account as a user. The same general process applies to all integrations.
+
+<Steps>
+  <Step title="Pick the categories of tools your company uses">
+    On first sign-in, an admin lands on **Set your company's tools**. Each tile is a category. Click any category your team uses (Email, Calendar, ERP, CRM, and so on) to open it.
+
+    <Frame caption="Selecting tool categories during admin onboarding.">
+      <img src="/images/admins/integrations/01-set-company-tools.png" alt="Set your company's tools onboarding screen with tiles for Email, Calendar, Messaging, Project Management, ERP, CRM, Contract Management, Healthcare, Workflow Automation, Analytics, Data Integration, Knowledge Search, Product Lifecycle, and Remote MCP Servers." />
+    </Frame>
+  </Step>
+
+  <Step title="Open the category modal">
+    Clicking a category immediately opens a modal listing the integrations available in that category.
+
+    <Frame caption="The Email category modal with Google Workspace and Microsoft 365 listed.">
+      <img src="/images/admins/integrations/02-email-category-modal.png" alt="Email integrations modal showing Google Workspace and Microsoft 365 options." />
+    </Frame>
+  </Step>
+
+  <Step title="Configure each integration you want to enable">
+    Inside the modal, click the integration you want to set up. A configuration form opens for that integration. Each integration requires a different set of credentials and fields, so the form changes based on which one you picked. In this example, configuring Google Workspace asks for the **OAuth Client ID**, **OAuth Client Secret**, and **Redirect URI**. Fill in the fields and click **Enable**.
+
+    Repeat for every integration in the category, then click **Done** to return to the category list.
+
+    <Frame caption="Configuring the Google Workspace OAuth client during admin onboarding.">
+      <img src="/images/admins/integrations/03-connect-google-workspace.png" alt="Connect Aperium to Google Workspace form with OAuth Client ID, OAuth Client Secret, and Redirect URI fields, and a note explaining that personal authentication is used." />
+    </Frame>
+  </Step>
+
+  <Step title="Each user links their own account">
+    After admin setup is done, every user sees a **Connect your tools** page. OAuth integrations show **Link Account**; tenant-wide integrations show **Managed by your admin**; integrations that accept personal tokens show **Add personal**.
+
+    <Frame caption="The user-side Connect your tools page after admin setup.">
+      <img src="/images/admins/integrations/04-connect-your-tools.png" alt="Connect your tools page with Google Workspace marked Connected, Microsoft 365 and Slack Workspace showing Link Account, Malbek CLM showing Add personal, and BigQuery and Odoo ERP showing Managed by your admin." />
+    </Frame>
+  </Step>
+
+  <Step title="Approve the OAuth consent screen">
+    Clicking **Link Account** for an OAuth integration redirects the user to the provider's consent screen. The user reviews the requested scopes and clicks **Allow** to finish the link.
+
+    <Frame caption="The Google OAuth consent screen requesting access for Aperium.">
+      <img src="/images/admins/integrations/05-google-oauth-consent.png" alt="Google sign-in consent screen titled 'Aperium wants to access your Google Account' with scopes listed for Gmail, Google Drive, Google Docs, Google Sheets, and Google Calendar, plus Cancel and Allow buttons." />
+    </Frame>
+  </Step>
+</Steps>
+
+## How integrations work under the hood
+
+Aperium connects to external systems through MCP (Model Context Protocol) servers. Each connector exposes a set of tools that agents can call.
+
+## Integration auth models
+
+Aperium supports three auth models based on who supplies the credentials. In every case, an admin enters configuration through the **admin onboarding flow** the first time they sign in or through the **Admin Console's MCP Servers tab** at any point afterward. Credentials are stored against the tenant in Aperium's database, not in environment variables.
+
+<Card title="OAuth integrations" icon="user-check">
+  Each user links their own account through an OAuth flow. The admin configures the OAuth client once (client ID, client secret, redirect URI). After that, each user clicks **Connect** on the Integrations page and consents to the requested scopes.
+
+  Examples: `google_workspace`, `slack_workspace`, `atlassian`, `microsoft365`.
+</Card>
+
+<Card title="Configured tenant-wide integrations" icon="building">
+  An admin enters one set of credentials and every user in the tenant shares the same connection. No per-user setup is needed.
+
+  Examples: `arena`, `malbek`, `prefect`, `bigquery`, `postgres`, `gcs_datalake`, `epic`.
+</Card>
+
+<Card title="Tenant-wide integrations with personal tokens" icon="key">
+  An admin sets up the integration at the tenant level, and individual users supply their own token, key, or username/password. This comes in two flavors:
+
+  - **Required personal token.** Each user must add their own credential before they can use the integration. Example: `onyx` (admin enters the URL; each user adds their own Onyx token).
+  - **Optional personal token.** The tenant-wide configuration works for everyone with a default permission set, but users can choose to add a personal token if they want different access (for example, scoped to their own permissions in the upstream system). Examples: `odoo`, `salesforce`, `netsuite`.
+</Card>
+
+## Where integrations live in the product
+
+**Integrations page (`/integrations`).** Available to every user. Shows all integrations the tenant has configured, the connection status for each, and tools per connector. OAuth connectors expose Connect, Manage, and Reauthorize actions. Integrations that accept personal tokens expose a field where users can add or update their own credential.
+
+<Frame caption="The user-facing Integrations page, showing connection status and tools for each connector.">
+  <img src="/images/admins/integrations/06-integrations-page.png" alt="Integrations page with overview totals on the left (9 total integrations, 8 connected, 247 total tools) and tiles for Arena PLM, BigQuery, GCS Datalake, Google Workspace, Malbek CLM, Microsoft 365, NetSuite ERP, Odoo ERP, and Salesforce CRM. Each tile shows availability, tool counts, and management actions." />
+</Frame>
+
+**Admin Console, MCP Servers tab.** Available to admins. Lists configured MCP servers, surfaces whether each one is active, and lets admins add or edit tenant integrations.
+
+<Frame caption="The MCP Servers tab in the Admin Console.">
+  <img src="/images/admins/integrations/07-admin-mcp-servers-tab.png" alt="Admin Console MCP Servers tab showing tenant selector, impersonation controls, and a table of configured servers (Arena PLM, BigQuery, GCS Data Lake, Google Workspace) with status, tool count, and edit and delete actions, plus Add Integration and Add MCP Server buttons." />
+</Frame>
+
+## Editing existing tenant integrations
+
+To edit an integration that's already been configured, go to the **Admin Console, MCP Servers tab** (shown in the screenshot above) and click the pencil icon next to the integration you want to update. The edit modal shows a confirmation dialog that lists how many users will be affected. Changing the auth method or extra parameters invalidates affected users' credentials so they can re-link cleanly.
+
+For the catalog of connectors and the tools each one exposes, see [Supported integrations](/admins/integrations/supported/overview). To add a connector that Aperium does not ship out of the box, see [Custom integrations](/admins/integrations/custom).

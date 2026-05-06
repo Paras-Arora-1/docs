@@ -1,0 +1,144 @@
+---
+title: "Google Workspace"
+description: "Connect Aperium to Gmail, Drive, Docs, Sheets, and Calendar through OAuth."
+icon: "google"
+---
+
+The Google Workspace integration lets users link their personal Google account to Aperium so agents can read and act on their email, files, documents, spreadsheets, and calendar. Setup happens in two places: configure an OAuth client in Google Cloud, then paste the credentials into the Aperium admin onboarding flow or the Admin Console's MCP Servers tab.
+
+## What you'll need
+
+- A Google Cloud project. You can use an existing project or create a new one.
+- An admin account that can manage OAuth credentials and APIs in that project.
+- Your Aperium deployment URL (for example `https://app.your-company.com`).
+
+## Setup
+
+<Steps>
+  <Step title="Create or select a Google Cloud project">
+    Open the [Google Cloud Console](https://console.cloud.google.com) and either pick an existing project or [create a new one](https://console.cloud.google.com/projectcreate). Every step below applies to this project.
+  </Step>
+
+  <Step title="Enable the required Google APIs">
+    From the left panel, open **APIs & Services**, go to **Enabled APIs and services**, and click **+ ENABLE APIS AND SERVICES**. Search for and enable each of these:
+
+    - Gmail API
+    - Google Drive API
+    - Google Docs API
+    - Google Sheets API
+    - Google Calendar API
+
+    Without all five APIs enabled, parts of the integration will fail when users try to use them.
+  </Step>
+
+  <Step title="Configure the OAuth consent screen">
+    Under **APIs & Services**, select the **OAuth consent screen** tab.
+
+    - If your Google Cloud account belongs to a Google Workspace organization and you only need to authorize users in that org, choose **Internal** for User Type.
+    - Otherwise, choose **External**.
+
+    Fill in the required fields:
+
+    - App name (for example `Aperium`).
+    - User support email.
+    - Developer contact email.
+
+    Click **SAVE AND CONTINUE**.
+  </Step>
+
+  <Step title="Add the OAuth scopes">
+    On the **Scopes** step of the consent screen, click **ADD OR REMOVE SCOPES** and add every scope below. These are the scopes Aperium requests at consent time.
+
+    **Identity**
+
+    - `openid`
+    - `https://www.googleapis.com/auth/userinfo.email`
+    - `https://www.googleapis.com/auth/userinfo.profile`
+
+    **Gmail**
+
+    - `https://www.googleapis.com/auth/gmail.readonly`
+    - `https://www.googleapis.com/auth/gmail.send`
+    - `https://www.googleapis.com/auth/gmail.modify`
+
+    **Drive**
+
+    - `https://www.googleapis.com/auth/drive.readonly`
+    - `https://www.googleapis.com/auth/drive`
+
+    **Docs**
+
+    - `https://www.googleapis.com/auth/documents.readonly`
+    - `https://www.googleapis.com/auth/documents`
+
+    **Sheets**
+
+    - `https://www.googleapis.com/auth/spreadsheets.readonly`
+    - `https://www.googleapis.com/auth/spreadsheets`
+
+    **Calendar**
+
+    - `https://www.googleapis.com/auth/calendar.readonly`
+
+    Several of these are classified as sensitive or restricted scopes by Google. For unverified apps you can still proceed using test users (next step). For a production rollout, plan to submit the app for Google's OAuth verification.
+
+    Click **SAVE AND CONTINUE**.
+  </Step>
+
+  <Step title="Add test users (External user type only)">
+    If you chose **External** in the consent screen step and the app is not yet verified, add a test user entry for every email address that should be allowed to complete the OAuth flow. Without this, only the developer account can connect.
+
+    Click **SAVE AND CONTINUE**, review the summary, and click **BACK TO DASHBOARD**.
+  </Step>
+
+  <Step title="Create the OAuth client credentials">
+    Open the **Credentials** tab and click **+ CREATE CREDENTIALS** then **OAuth client ID**.
+
+    <Frame caption="Creating an OAuth client ID from the Credentials tab in Google Cloud Console.">
+      <img src="/images/admins/integrations/google-workspace/create-oauth-client-id.png" alt="Google Cloud Console Credentials page with the + CREATE CREDENTIALS menu open and OAuth client ID highlighted." />
+    </Frame>
+
+    - **Application type:** Web application.
+    - **Name:** Anything that makes the client easy to find later (for example `Aperium`).
+
+    **Authorized JavaScript origins.** Add the origin of your Aperium deployment, with no trailing slash:
+
+    ```
+    https://<your-aperium-domain>
+    ```
+
+    For local development, also add `http://localhost:3000`.
+
+    **Authorized redirect URIs.** Add the Aperium OAuth callback path:
+
+    ```
+    https://<your-aperium-domain>/api/v1/google/auth/callback
+    ```
+
+    For local development, also add `http://localhost:8080/api/v1/google/auth/callback`.
+
+    Click **CREATE**. Google shows the **Client ID** and **Client secret**. Copy both, or use **Download JSON** to save the credentials file.
+  </Step>
+
+  <Step title="Paste the credentials into Aperium">
+    Open Aperium and go to either the **admin onboarding flow** (first sign-in) or the **Admin Console's MCP Servers tab** (any time after). Open the **Connect Aperium to Google Workspace** form and fill in:
+
+    - **OAuth Client ID.** The client ID from Google Cloud.
+    - **OAuth Client Secret.** The client secret from Google Cloud.
+    - **Redirect URI.** The same redirect URI you registered in Google Cloud (for example `https://<your-aperium-domain>/api/v1/google/auth/callback`).
+
+    Click **Enable**. Once saved, every user can link their personal Google account from the Integrations page.
+
+    <Frame caption="The Connect Aperium to Google Workspace form in the admin onboarding flow.">
+      <img src="/images/admins/integrations/google-workspace/connect-form.png" alt="Connect Aperium to Google Workspace form with Auth Method set to OAuth2 and fields for OAuth Client ID, OAuth Client Secret, and Redirect URI, plus Cancel and Enable buttons." />
+    </Frame>
+  </Step>
+</Steps>
+
+## What users see
+
+After admin setup is complete, users land on the **Connect your tools** page (during onboarding) or the **Integrations** page (any time after). They click **Link Account** on the Google Workspace tile, are redirected to Google's consent screen, review the scopes Aperium is asking for, and click **Allow** to finish linking.
+
+## Going to production
+
+For a production rollout where users outside a Workspace organization need to sign in, submit the OAuth app for Google verification. Restricted scopes such as `gmail.modify` and `drive` typically require Google verification before the consent screen will allow non-test users to proceed.

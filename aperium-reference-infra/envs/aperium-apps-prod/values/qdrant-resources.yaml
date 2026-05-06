@@ -1,0 +1,6 @@
+secrets:
+  storeName: YOUR_CLUSTER_SECRET_STORE_NAME
+  apiKeys:
+    name: qdrant-api-keys
+    remoteSecretKey: qdrant-api-keys
+    refreshInterval: 1h0m0s

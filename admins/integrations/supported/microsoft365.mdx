@@ -1,0 +1,105 @@
+---
+title: "Microsoft 365"
+description: "Connect Aperium to Outlook Mail, Calendar, and OneDrive through OAuth."
+icon: "microsoft"
+---
+
+The Microsoft 365 integration lets users link their personal Microsoft account to Aperium so agents can read and act on their Outlook mail, calendar, and OneDrive files. Setup happens in two places: register an app in the Microsoft Entra admin center, then paste the credentials into the Aperium admin onboarding flow or the Admin Console's MCP Servers tab.
+
+## What you'll need
+
+- Access to the [Azure portal](https://portal.azure.com) for your organization with rights to create app registrations in Microsoft Entra ID.
+- Your Aperium deployment URL (for example `https://app.your-company.com`).
+
+## Setup
+
+<Steps>
+  <Step title="Create the app registration">
+    Sign in to the [Azure portal](https://portal.azure.com) and search for **Microsoft Entra ID** (formerly Azure Active Directory). Open **App registrations** and click **+ New registration**.
+
+    - **Name:** Anything descriptive (for example `Aperium Microsoft 365 Integration`).
+    - **Supported account types:** Select **Accounts in any organizational directory (Any Microsoft Entra ID tenant) and personal Microsoft accounts**. Aperium uses the multi-tenant `common` endpoint, so this option is required for most deployments.
+    - **Redirect URI:** Choose **Web** for the platform and enter:
+
+      ```
+      https://<your-aperium-domain>/api/v1/microsoft365/auth/callback
+      ```
+
+      For local development, use `http://localhost:8080/api/v1/microsoft365/auth/callback`.
+
+    Click **Register**.
+  </Step>
+
+  <Step title="Copy the Application (client) ID">
+    On the app's **Overview** page, copy the **Application (client) ID**. This is the value you'll paste into Aperium as **OAuth Client ID** later.
+  </Step>
+
+  <Step title="Create a client secret">
+    In the left panel of the app, open **Certificates & secrets**, switch to the **Client secrets** tab, and click **+ New client secret**.
+
+    - Add a description (for example `Aperium`).
+    - Pick an expiry. 24 months is a common choice; plan to rotate the secret before it expires.
+
+    Click **Add**. Copy the **Value** column immediately. This is what you paste into Aperium as **OAuth Client Secret**.
+
+    The **Value** is shown only once. If you navigate away or refresh, you'll have to create a new secret. The **Secret ID** is just Azure's internal identifier for the secret entry; you don't need it.
+  </Step>
+
+  <Step title="Add Microsoft Graph API permissions">
+    Open the **API permissions** tab, click **+ Add a permission**, choose **Microsoft Graph**, and pick **Delegated permissions**. Add every permission below.
+
+    **Identity (always required)**
+
+    - `openid`
+    - `email`
+    - `profile`
+    - `offline_access`
+    - `User.Read`
+
+    **Outlook Mail**
+
+    - `Mail.Read`
+    - `Mail.Send`
+    - `Mail.ReadWrite`
+
+    **Outlook Calendar**
+
+    - `Calendars.Read`
+
+    **OneDrive**
+
+    - `Files.Read`
+    - `Files.ReadWrite`
+
+    Click **Add permissions**. If your tenant requires admin consent for any of these permissions, click **Grant admin consent for &lt;your tenant&gt;** and confirm.
+
+    <Frame caption="The API permissions page after adding the required Microsoft Graph delegated permissions.">
+      <img src="/images/admins/integrations/microsoft365/api-permissions.png" alt="Azure portal API permissions page for the Aperium app registration showing Microsoft Graph delegated permissions including Calendars.Read, email, Files.Read, Mail.Read, offline_access, openid, profile, and User.Read." />
+    </Frame>
+
+    Aperium uses delegated permissions only; there's no application-permissions flow. The standard Microsoft Graph API is used, so no extra APIs need to be enabled separately.
+  </Step>
+
+  <Step title="Paste the credentials into Aperium">
+    Open Aperium and go to either the **admin onboarding flow** (first sign-in) or the **Admin Console's MCP Servers tab** (any time after). Open the **Connect Aperium to Microsoft 365** form and fill in:
+
+    - **OAuth Client ID.** The Application (client) ID copied in step 2.
+    - **OAuth Client Secret.** The client secret value copied in step 3.
+    - **Redirect URI.** The same redirect URI you registered in step 1 (for example `https://<your-aperium-domain>/api/v1/microsoft365/auth/callback`).
+
+    Click **Enable**. Once saved, every user can link their personal Microsoft account from the Integrations page.
+
+    <Frame caption="The Connect Aperium to Microsoft 365 form in the admin onboarding flow.">
+      <img src="/images/admins/integrations/microsoft365/connect-form.png" alt="Connect Aperium to Microsoft 365 form with Auth Method set to OAuth2 and fields for OAuth Client ID, OAuth Client Secret, and Redirect URI, plus Cancel and Enable buttons." />
+    </Frame>
+  </Step>
+</Steps>
+
+## What users see
+
+After admin setup is complete, users land on the **Connect your tools** page (during onboarding) or the **Integrations** page (any time after). They click **Link Account** on the Microsoft 365 tile, are redirected to Microsoft's consent screen, review the requested permissions, and click **Accept** to finish linking.
+
+## Notes
+
+- **Single-tenant deployments.** If you only want users from one specific Entra ID tenant to be able to link their accounts, register the app as single-tenant in step 1 instead. You'll also need to override Aperium's default `common` authority with your tenant's GUID at deploy time.
+- **Secret rotation.** Client secrets expire on the schedule you chose. Add a calendar reminder a few weeks before the expiry to create a new secret and update the credentials in the Admin Console's MCP Servers tab.

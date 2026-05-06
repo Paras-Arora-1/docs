@@ -1,0 +1,87 @@
+{{- if .Values.postgresqlTabularCleanup.enabled }}
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: {{ include "aperium.fullname" . }}-postgresql-tabular-cleanup
+  labels:
+    {{- include "aperium.labels" . | nindent 4 }}
+    app.kubernetes.io/component: postgresql-tabular-cleanup
+spec:
+  schedule: {{ .Values.postgresqlTabularCleanup.schedule | quote }}
+  suspend: {{ .Values.postgresqlTabularCleanup.suspend }}
+  concurrencyPolicy: {{ .Values.postgresqlTabularCleanup.concurrencyPolicy }}
+  successfulJobsHistoryLimit: {{ .Values.postgresqlTabularCleanup.successfulJobsHistoryLimit }}
+  failedJobsHistoryLimit: {{ .Values.postgresqlTabularCleanup.failedJobsHistoryLimit }}
+  jobTemplate:
+    spec:
+      backoffLimit: {{ .Values.postgresqlTabularCleanup.backoffLimit }}
+      activeDeadlineSeconds: {{ .Values.postgresqlTabularCleanup.activeDeadlineSeconds }}
+      template:
+        metadata:
+          labels:
+            {{- include "aperium.labels" . | nindent 12 }}
+            app.kubernetes.io/component: postgresql-tabular-cleanup
+        spec:
+          serviceAccountName: {{ include "aperium.serviceAccountName" . }}
+          restartPolicy: Never
+          {{- if .Values.cloudsql.enabled }}
+          initContainers:
+            - name: cloud-sql-proxy
+              restartPolicy: Always
+              image: "{{ .Values.cloudsql.image.repository }}:{{ .Values.cloudsql.image.tag }}"
+              imagePullPolicy: {{ .Values.cloudsql.image.pullPolicy }}
+              args:
+                - "--private-ip"
+                {{- if .Values.cloudsql.runConnectionTest }}
+                - "--run-connection-test"
+                {{- end }}
+                - "--auto-iam-authn"
+                - "--structured-logs"
+                - "--port={{ .Values.cloudsql.port }}"
+                - {{ .Values.cloudsql.connectString | quote }}
+              securityContext:
+                runAsNonRoot: true
+              resources:
+                {{- toYaml .Values.cloudsql.resources | nindent 16 }}
+          {{- end }}
+          containers:
+            - name: postgresql-tabular-cleanup
+              image: "{{ .Values.image.backendRepository }}:{{ .Values.image.tag }}"
+              imagePullPolicy: {{ .Values.image.pullPolicy }}
+              command:
+                {{- toYaml .Values.postgresqlTabularCleanup.command | nindent 16 }}
+              env:
+                - name: SERVICE_VERSION
+                  value: {{ .Values.image.tag | quote }}
+                - name: SENTRY_RELEASE
+                  value: {{ .Values.image.tag | quote }}
+                {{- if .Values.databaseUrlExternalSecret.enabled }}
+                - name: DATABASE_URL
+                  valueFrom:
+                    secretKeyRef:
+                      name: {{ .Values.databaseUrlExternalSecret.targetName | quote }}
+                      key: DATABASE_URL
+                      optional: true
+                {{- end }}
+                {{- with .Values.postgresqlTabularCleanup.extraEnv }}
+                {{- toYaml . | nindent 16 }}
+                {{- end }}
+              {{- if .Values.backendEnvSecret.enabled }}
+              volumeMounts:
+                - name: backend-env
+                  mountPath: {{ .Values.backendEnvSecret.mountPath }}
+                  subPath: {{ .Values.backendEnvSecret.subPath }}
+                  readOnly: true
+              {{- end }}
+              resources:
+                {{- toYaml .Values.postgresqlTabularCleanup.resources | nindent 16 }}
+          {{- if .Values.backendEnvSecret.enabled }}
+          volumes:
+            - name: backend-env
+              secret:
+                secretName: {{ .Values.backendEnvSecret.name }}
+                items:
+                  - key: {{ .Values.backendEnvSecret.key }}
+                    path: .env
+          {{- end }}
+{{- end }}

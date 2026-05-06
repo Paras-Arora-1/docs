@@ -1,0 +1,23 @@
+apiVersion: app.terraform.io/v1alpha2
+kind: AgentPool
+metadata:
+  name: agent-pool-{{ .Values.tfc.poolName }}
+spec:
+  organization: {{ .Values.tfc.organization }}
+  token:
+    secretKeyRef:
+      name: terraform-agents-multi
+      key: teamToken
+  name: {{ .Values.tfc.poolName }}
+  agentTokens:
+    - name: {{ .Values.tfc.poolName }}
+{{- if .Values.autoscaling.enabled }}
+  autoscaling:
+    {{- toYaml .Values.autoscaling.params | nindent 4 }}
+{{- end }}
+  agentDeployment:
+  {{- if not .Values.autoscaling.enabled }}
+    replicas: 1
+  {{- end }}
+    spec:
+      {{- toYaml .Values.agentDeployment.spec | nindent 6 }}

@@ -1,0 +1,107 @@
+---
+title: "Overview"
+description: "What gets deployed to GCP for a production Aperium rollout."
+icon: "cloud"
+---
+
+The recommended production deployment of Aperium runs on Google Cloud using Terraform, ArgoCD, and Helm against a GKE Autopilot cluster. The deployment is organized as a self-contained reference layout that takes you from a shared GCP environment bootstrap through a working Aperium rollout. You can use it as a reference snapshot or as a template-runnable starting point with placeholders filled in.
+
+## What gets deployed
+
+The deployment is split into a shared environment stack, an Aperium-specific stack, an ArgoCD app set, and a collection of local Helm charts.
+
+<AccordionGroup>
+  <Accordion title="Shared environment stack" icon="server">
+    Layer: `envs/aperium-apps-prod/tf`, `tf/modules/argocd`, `tf/modules/base_resources`.
+
+    Bootstraps the shared environment:
+
+    - VPC, subnet, private service networking, NAT
+    - GKE Autopilot cluster
+    - Public DNS zone for your apps subdomain (templated as `apps.YOUR_DOMAIN.`)
+    - ArgoCD bootstrap
+    - Controller and service-account plumbing for platform add-ons
+    - Cloud Armor policies
+    - Secret Manager container for Terraform agent configuration
+  </Accordion>
+
+  <Accordion title="App-specific stack" icon="boxes-stacked">
+    Layer: `apps/aperium/envs/prod/tf`.
+
+    Bootstraps Aperium-owned dependencies:
+
+    - Runtime GSA and Workload Identity
+    - Artifact Registry repo
+    - GCS bucket
+    - Secret Manager secret containers
+    - BigQuery dataset
+    - Optional Cloud SQL, PostgreSQL grants, Redis, and KEDA DB secret generation
+  </Accordion>
+
+  <Accordion title="ArgoCD applications" icon="diagram-project">
+    Path: `envs/aperium-apps-prod/argo` and `envs/aperium-apps-prod/values`.
+
+    Dependency set:
+
+    - `cert-manager`
+    - `external-secrets`
+    - `external-dns`
+    - `gke-gateway`
+    - `gateway-smoke`
+    - `keda`
+    - `kyverno`
+    - `stakater-reloader`
+    - `terraform-operator`
+    - `prefect` — minimal server plus an Aperium worker targeting the `aperium-pool` work pool
+    - `phoenix`
+    - `qdrant`
+    - `aperium` plus its in-cluster MCP services
+
+    The current prod-style deployment shape also includes a dedicated background scheduler and cleanup cronjobs for invoice export, file cache, and PostgreSQL tabular cleanup.
+  </Accordion>
+
+  <Accordion title="Local Helm charts" icon="ship">
+    Path: `charts/`.
+
+    - `charts/aperium`
+    - `charts/aperium-mcp-common`
+    - `charts/cert-manager-resources`
+    - `charts/gateway-smoke`
+    - `charts/gke-gateway-api`
+    - `charts/kyverno-resources`
+    - `charts/prefect-resources`
+    - `charts/qdrant-resources`
+    - `charts/terraform-agent-resources`
+  </Accordion>
+</AccordionGroup>
+
+## Out of scope
+
+The deployment starts at the **shared environment / cluster bootstrap** layer. Treat the following as prerequisites, not as work the deployment does for you:
+
+- GCP org, folder, and project creation
+- Terraform Cloud OIDC and bootstrap stacks
+- CI/CD pipelines that build and publish Aperium images
+- Application source code itself
+- Parent-DNS delegation outside the managed subdomain
+
+## Suggested reading order
+
+<Steps>
+  <Step title="Prerequisites">
+    Review what must already exist before you can apply the deployment. See [Prerequisites](/deployment/gcp/prerequisites).
+  </Step>
+  <Step title="Deployment order">
+    Follow the ten-phase rollout from shared environment bootstrap through final verification. See [Deployment order](/deployment/gcp/deployment-order).
+  </Step>
+  <Step title="Dependency contract">
+    Understand the dependency boundary, ordering rules, and the explicit go / no-go gates that decide when it is safe to roll out Aperium itself. See [Dependencies](/deployment/gcp/dependencies).
+  </Step>
+  <Step title="Secret contract">
+    Load the Secret Manager payloads that Aperium expects. Secret container creation is separate from payload population. See [Secrets](/deployment/gcp/secrets).
+  </Step>
+</Steps>
+
+<Note>
+  The deployment uses placeholders such as `YOUR_GCP_PROJECT_ID`, `YOUR_DOMAIN`, `YOUR_TFC_ORG`, and `YOUR_CLUSTER_SECRET_STORE_NAME`. The full placeholder list with primary locations lives in `PLACEHOLDERS.md` at the root of your deployment repo. Reference snapshots of working values are preserved in `vars.reference.tfvars` files but are not auto-loaded. Copy them or `vars.auto.tfvars.example` into your real `vars.auto.tfvars`.
+</Note>

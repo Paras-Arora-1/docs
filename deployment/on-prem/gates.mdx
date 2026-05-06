@@ -1,0 +1,38 @@
+---
+title: "Deployment gates"
+description: "Pre-production and production readiness gates for an on-prem rollout."
+icon: "circle-check"
+---
+
+The gates below are the last line of defence before declaring an on-prem deployment ready. Treat each one as blocking — a release that skips a gate is a release that has not been validated.
+
+## Pre-production validation gates
+
+<Check>All images are mirrored to the private registry and deployed by digest.</Check>
+<Check>Required secrets are materialized in-cluster.</Check>
+<Check>Database migrations complete successfully.</Check>
+<Check>Backend starts with `MULTI_POD_ENABLED=true` and shared-storage validation passes.</Check>
+<Check>Every deployed `aperium-mcp-<connector>` service is healthy and ready.</Check>
+<Check>Backend debug status reports each enabled connector's transport as `http`.</Check>
+<Check>Local LLM health check passes through the same local-provider configuration used by chat.</Check>
+<Check>For every enabled connector, a representative read workflow succeeds end to end from the UI.</Check>
+<Check>For every enabled connector, a representative write workflow succeeds in a non-production upstream environment.</Check>
+<Check>A no-capability-routing prompt still exposes or hydrates the expected tool inventory for every enabled connector.</Check>
+
+## Production readiness gates
+
+<Check>Cloud LLM fallback is disabled or formally approved for your environment.</Check>
+<Check>Every enabled connector is configured only through HTTP MCP transport in the deployment overlay.</Check>
+<Check>NetworkPolicy blocks external access to every `aperium-mcp-<connector>` service and to the local model endpoints.</Check>
+<Check>Backups and restore procedure have been tested.</Check>
+<Check>Release rollback is documented as redeploying a prior approved version, not silently switching to stdio transport or external LLM providers.</Check>
+
+## Open decisions
+
+The following items are left open in the on-prem requirements contract and must be settled before signing off:
+
+- Which internal OpenAI-compatible model-serving endpoint will own the primary model traffic (for example, `gemma-4`).
+- Whether file storage remains RWX local storage or moves to an object-store replacement.
+- Whether Qdrant and Phoenix are mandatory in the initial on-prem release or disabled until needed.
+- The final write-tool allowlist and upstream service-account permissions for every enabled connector.
+- Local model SLOs for latency, context length, concurrency, and tool-call accuracy.

@@ -1,0 +1,111 @@
+---
+title: "Dependencies"
+description: "Dependency boundary, ordering rules, and the go / no-go gates for Aperium rollout."
+icon: "diagram-project"
+---
+
+This page reflects the dependency contract for the GCP deployment. It exists so you can decide, with no ambiguity, when it is safe to roll Aperium forward and when you should stop and remediate first.
+
+## Scope
+
+The deployment covers the infrastructure and ArgoCD dependency chain needed to bring Aperium from a shared GCP environment bootstrap to a functioning application deployment. It does not cover GCP org/folder/project creation, CI/CD image pipelines, or application source code.
+
+## Dependency groups
+
+### 1. Shared platform prerequisites
+
+Required before the app layer can reconcile correctly:
+
+- `cert-manager`
+- `external-secrets`
+- `external-dns`
+- `gke-gateway`
+- `gateway-smoke`
+- `keda`
+- `kyverno`
+- `stakater-reloader`
+- `terraform-operator`
+
+### 2. Direct in-cluster runtime dependencies
+
+The current prod-style Aperium deployment calls these services in-cluster:
+
+- `aperium-mcp-common`
+- `aperium-mcp-salesforce`
+- `aperium-mcp-malbek`
+- `aperium-mcp-netsuite`
+- `aperium-mcp-odoo`
+- `aperium-mcp-arena`
+- `aperium-mcp-prefect`
+- `aperium-mcp-google-workspace`
+- `aperium-mcp-slack-workspace`
+- `aperium-mcp-atlassian`
+- `aperium-mcp-epic`
+- `aperium-mcp-gcs-datalake`
+- `aperium-retrieval`
+
+These references are visible in the prod-style `aperium.yaml` overlay carried forward from the live deployment shape.
+
+### 3. Supporting services
+
+Included because they are part of the Aperium deployment shape or the surrounding operational stack:
+
+- `prefect` — minimal server plus `prefect-worker-aperium` targeting `aperium-pool`.
+- `phoenix`.
+- A dedicated `background-scheduler` deployment when scheduler mode is enabled.
+- Cleanup cronjobs for invoice export, file cache, and PostgreSQL tabular cleanup.
+
+## Cross-stack ordering contract
+
+### Shared env stack must exist first
+
+Apply `envs/aperium-apps-prod/tf` before anything else. It produces the infrastructure that later steps depend on:
+
+- Network and subnetwork
+- GKE cluster
+- DNS zone
+- ArgoCD bootstrap
+- Platform Workload Identity GSAs
+- Terraform agent config secret container
+
+### App stack depends on shared env outputs
+
+Apply `apps/aperium/envs/prod/tf` only after the shared env stack exists. It depends on values such as `gcp_project_id`, `gcp_network_path`, and cluster reachability assumptions for private resources.
+
+### Prefect scaffold assumptions
+
+The Prefect deployment is intentionally minimal and assumes the following are already available or will be adapted:
+
+- A Prefect backing Cloud SQL instance.
+- A Prefect runtime GSA, for example `prefect@YOUR_GCP_PROJECT_ID.iam.gserviceaccount.com`.
+- A secret-store entry named `prefect-admin-credentials`.
+- A bootstrap step to create the `aperium-pool` work pool after Prefect server is up.
+
+## Go / no-go gates
+
+<Check>
+  **Go.** Proceed to a full Aperium rollout only when *all* of these are true.
+</Check>
+
+1. Shared env Terraform has applied successfully.
+2. DNS delegation is complete.
+3. ArgoCD is reconciling the app-of-apps set.
+4. `external-secrets` is healthy and the `ClusterSecretStore` is Ready.
+5. `prefect` is healthy and `aperium-pool` exists.
+6. `qdrant` is healthy and API keys are synced.
+7. `phoenix` is healthy and auth secrets are synced.
+8. App-specific Terraform dependencies are created.
+9. Required Secret Manager payloads exist.
+
+<Warning>
+  **No-go.** Stop and remediate if *any* of these are true.
+</Warning>
+
+- ArgoCD cannot read the repo because the URL placeholder or GitHub App credentials were not updated.
+- Secret Manager containers exist but payloads were never added.
+- `external-secrets` is unhealthy or cannot access GCP Secret Manager.
+- `prefect-admin-credentials` is missing or malformed.
+- `aperium-pool` was never created in Prefect.
+- `qdrant-api-keys` is missing in either the `qdrant` or `aperium` namespace.
+- Cloud SQL or Redis is expected but disabled in the app stack.
+- The app stack is running from a workspace or agent that cannot reach private database endpoints.

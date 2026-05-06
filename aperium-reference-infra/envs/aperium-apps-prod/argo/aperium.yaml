@@ -1,0 +1,74 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: aperium
+  namespace: argo-cd
+spec:
+  project: tools
+  sources:
+    - repoURL: https://github.com/YOUR_ORG/aperium-reference-infra.git
+      path: charts/aperium
+      targetRevision: main
+      helm:
+        valueFiles:
+          - $values/envs/aperium-apps-prod/values/aperium.yaml
+    - repoURL: https://github.com/YOUR_ORG/aperium-reference-infra.git
+      path: charts/aperium-mcp-common
+      targetRevision: main
+      helm:
+        valueFiles:
+          - $values/envs/aperium-apps-prod/values/aperium-mcp-common.yaml
+    - repoURL: https://github.com/YOUR_ORG/aperium-reference-infra.git
+      path: charts/aperium-mcp-common
+      targetRevision: main
+      helm:
+        valueFiles:
+          - $values/envs/aperium-apps-prod/values/aperium-mcp-prefect.yaml
+    - repoURL: https://github.com/YOUR_ORG/aperium-reference-infra.git
+      path: charts/aperium-mcp-common
+      targetRevision: main
+      helm:
+        valueFiles:
+          - $values/envs/aperium-apps-prod/values/aperium-mcp-salesforce.yaml
+    - repoURL: https://github.com/YOUR_ORG/aperium-reference-infra.git
+      path: charts/aperium-mcp-common
+      targetRevision: main
+      helm:
+        valueFiles:
+          - $values/envs/aperium-apps-prod/values/aperium-mcp-malbek.yaml
+    - repoURL: https://github.com/YOUR_ORG/aperium-reference-infra.git
+      path: charts/aperium-mcp-common
+      targetRevision: main
+      helm:
+        valueFiles:
+          - $values/envs/aperium-apps-prod/values/aperium-mcp-arena.yaml
+    - repoURL: https://github.com/YOUR_ORG/aperium-reference-infra.git
+      path: charts/aperium-mcp-common
+      targetRevision: main
+      helm:
+        valueFiles:
+          - $values/envs/aperium-apps-prod/values/aperium-mcp-netsuite.yaml
+    - repoURL: https://github.com/YOUR_ORG/aperium-reference-infra.git
+      path: charts/aperium-mcp-common
+      targetRevision: main
+      helm:
+        valueFiles:
+          - $values/envs/aperium-apps-prod/values/aperium-mcp-odoo.yaml
+    - repoURL: https://github.com/YOUR_ORG/aperium-reference-infra.git
+      path: charts/aperium-mcp-common
+      targetRevision: main
+      helm:
+        valueFiles:
+          - $values/envs/aperium-apps-prod/values/aperium-mcp-google-workspace.yaml
+    - repoURL: https://github.com/YOUR_ORG/aperium-reference-infra.git
+      targetRevision: main
+      ref: values
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: aperium
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true

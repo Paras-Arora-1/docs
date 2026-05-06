@@ -1,0 +1,34 @@
+serviceAccount:
+  annotations:
+    iam.gke.io/gcp-service-account: cert-manager@YOUR_GCP_PROJECT_ID.iam.gserviceaccount.com
+
+crds:
+  enabled: true
+  keep: true
+
+global:
+  leaderElection:
+    namespace: cert-manager
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 128Mi
+
+webhook:
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+
+cainjector:
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+
+startupapicheck:
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi

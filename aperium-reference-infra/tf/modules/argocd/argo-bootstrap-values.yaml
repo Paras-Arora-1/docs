@@ -1,0 +1,138 @@
+global:
+  domain: argo-cd.${dnsDomain}
+
+configs:
+  params:
+    server.insecure: true
+  cm:
+    admin.enabled: "${argocdAdminEnabled}"
+    resource.customizations: |
+      monitoring.coreos.com/Prometheus:
+        health.lua: |
+          if obj.metadata.annotations ~= nil and obj.metadata.annotations["argocd.argoproj.io/skip-health-check"] ~= nil then
+            hs = {}
+            hs.status = "Healthy"
+            hs.message = "Ignoring Prometheus Health Check"
+            return hs
+          end
+
+          hs={ status = "Progressing", message = "Waiting for initialization" }
+          if obj.status ~= nil then
+            if obj.status.conditions ~= nil then
+              for i, condition in ipairs(obj.status.conditions) do
+
+                if condition.type == "Available" and condition.status ~= "True" then
+                  if condition.reason == "SomePodsNotReady" then
+                    hs.status = "Progressing"
+                  else
+                    hs.status = "Degraded"
+                  end
+                  hs.message = condition.message or condition.reason
+                end
+                if condition.type == "Available" and condition.status == "True" then
+                  hs.status = "Healthy"
+                  hs.message = "All instances are available"
+                end
+              end
+            end
+          end
+          return hs
+    resource.customizations.useOpenLibs.monitoring.coreos.com_Prometheus: "true"
+    resource.exclusions: |
+      - apiGroups:
+        - cilium.io
+        kinds:
+        - CiliumIdentity
+        clusters:
+        - "*"
+%{ if ssoEnabled ~}
+    dex.config: |
+      logger:
+        level: debug
+        format: json
+      connectors:
+      - type: saml
+        id: okta
+        name: Okta
+        config:
+          ssoURL: ${ssoSignonUrl}
+          caData: |
+            ${ssoCaCert}
+          redirectURI: https://argo-cd.${dnsDomain}/api/dex/callback
+          usernameAttr: email
+          emailAttr: email
+          groupsAttr: group
+%{ endif ~}
+  rbac:
+    policy.default: role:readonly
+%{ if ssoEnabled ~}
+    scopes: '[email,groups]'
+    policy.okta.csv: |
+      ${indent(6, argoOktaPolicy)}
+%{ endif ~}
+
+controller:
+  resources:
+    requests:
+      cpu: 250m
+      memory: 256Mi
+
+server:
+  service:
+    annotations:
+      cloud.google.com/neg: '{"ingress": true}'
+      cloud.google.com/backend-config: '{"ports": {"argo-cd-argocd-server": "argo-cd-argocd-server"}}'
+  ingress:
+    enabled: ${ingressEnabled}
+    controller: gke
+    annotations:
+      external-dns.alpha.kubernetes.io/hostname: argo-cd.${dnsDomain}
+    gke:
+      backendConfig:
+        healthCheck:
+          checkIntervalSec: 30
+          timeoutSec: 5
+          healthyThreshold: 1
+          unhealthyThreshold: 2
+          type: HTTP
+          requestPath: /healthz
+          port: 8080
+      frontendConfig:
+        redirectToHttps:
+          enabled: true
+      managedCertificate:
+        create: true
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+
+repoServer:
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+
+applicationSet:
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+
+dex:
+  resources:
+    requests:
+      cpu: 50m
+      memory: 32Mi
+
+redis:
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+
+notifications:
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi

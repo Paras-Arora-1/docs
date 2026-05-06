@@ -1,0 +1,32 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: qdrant
+  namespace: argo-cd
+spec:
+  project: tools
+  sources:
+    - chart: qdrant
+      repoURL: https://qdrant.github.io/qdrant-helm
+      targetRevision: 1.16.3
+      helm:
+        valueFiles:
+          - $values/envs/aperium-apps-prod/values/qdrant.yaml
+    - repoURL: https://github.com/YOUR_ORG/aperium-reference-infra.git
+      targetRevision: main
+      path: charts/qdrant-resources
+      helm:
+        valueFiles:
+          - $values/envs/aperium-apps-prod/values/qdrant-resources.yaml
+    - repoURL: https://github.com/YOUR_ORG/aperium-reference-infra.git
+      targetRevision: main
+      ref: values
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: qdrant
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true

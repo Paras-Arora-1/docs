@@ -1,0 +1,19 @@
+{{- if .Values.prometheus.serviceMonitor.enabled }}
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: {{ include "aperium-mcp-common.fullname" . }}
+  labels:
+    {{- include "aperium-mcp-common.labels" . | nindent 4 }}
+  annotations:
+    argocd.argoproj.io/sync-wave: {{ .Values.syncWaves.serviceMonitor | quote }}
+spec:
+  endpoints:
+    {{- toYaml .Values.prometheus.serviceMonitor.endpoints | nindent 4 }}
+  namespaceSelector:
+    matchNames:
+      - {{ .Release.Namespace }}
+  selector:
+    matchLabels:
+      {{- include "aperium-mcp-common.selectorLabels" . | nindent 6 }}
+{{- end }}

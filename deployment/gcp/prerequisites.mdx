@@ -1,0 +1,80 @@
+---
+title: "Prerequisites"
+description: "What must exist before applying the GCP deployment."
+icon: "list-check"
+---
+
+The GCP deployment starts at the shared environment bootstrap layer. The items below must already be in place before you apply it.
+
+## GCP and identity
+
+- A GCP project for the shared apps environment.
+- A Terraform Cloud / HCP Terraform organization and workspaces.
+- Credentials that can run Terraform against GCP.
+- Authority to delegate the parent DNS zone to the managed subdomain returned by Terraform.
+
+## Source control and ArgoCD
+
+- A Git repository that holds your extracted deployment layout.
+- A GitHub App that ArgoCD can use for repository access. You will need:
+  - `github_app_id`
+  - `github_app_installation_id`
+  - `github_app_private_key` (loaded as a sensitive Terraform variable in the shared env workspace)
+
+## First values to replace
+
+Before applying the deployment as a live repo, change these values:
+
+<Steps>
+  <Step title="Repo URL placeholder">
+    Replace the placeholder `https://github.com/YOUR_ORG/YOUR_REPO.git` everywhere it appears. ArgoCD app manifests and bootstrap Terraform files already point at this placeholder.
+  </Step>
+  <Step title="Terraform variables">
+    Start from `envs/aperium-apps-prod/tf/vars.auto.tfvars.example` and `apps/aperium/envs/prod/tf/vars.auto.tfvars.example`. Compare with `vars.reference.tfvars` in each directory for the extracted reference values.
+  </Step>
+  <Step title="GCP, TFC, and DNS placeholders">
+    Throughout values files, replace at minimum:
+
+    - `YOUR_GCP_PROJECT_ID`
+    - `YOUR_GCP_REGION`
+    - `YOUR_GCP_ZONE`
+    - `YOUR_DOMAIN`
+    - `YOUR_CLUSTER_SECRET_STORE_NAME`
+    - `YOUR_TFC_ORG`
+    - `YOUR_SHARED_ENV_WORKSPACE`
+    - `YOUR_APP_WORKSPACE`
+    - `YOUR_PREFECT_CLOUDSQL_INSTANCE`
+  </Step>
+  <Step title="Secret payloads">
+    Load the payloads described in [Secrets](/deployment/gcp/secrets). Terraform creates the Secret Manager *containers*; in most cases you still need to populate the values yourself.
+  </Step>
+</Steps>
+
+## Prefect prerequisite checklist
+
+Before syncing the `prefect` application, verify that all of the following are true:
+
+- `YOUR_PREFECT_CLOUDSQL_INSTANCE` is set and reachable from the cluster.
+- The Prefect runtime GSA exists, for example `prefect@YOUR_GCP_PROJECT_ID.iam.gserviceaccount.com`.
+- `prefect-admin-credentials` exists in the external secret store and produces a Kubernetes secret that contains `auth-string`.
+- `prefect-server.yaml` and `prefect-worker-aperium.yaml` values have been templated for your environment.
+- You have a bootstrap path to create the `aperium-pool` work pool after the Prefect server is healthy.
+
+## Conventions to remember
+
+- `vars.reference.tfvars` files are reference snapshots. They are not auto-loaded.
+- `vars.auto.tfvars.example` files are the starting point for real usage.
+- The local ArgoCD app manifests are wired to your extracted deployment repo, not back to any upstream source repo.
+- Many live prod-specific values have been replaced with placeholders, but the deployment structure is preserved.
+
+## Quick validation
+
+Before pushing the templated repo:
+
+```bash
+terraform fmt -check -recursive .
+rg -n "YOUR_ORG/YOUR_REPO|vars.reference.tfvars|YOUR_GCP_PROJECT_ID|YOUR_DOMAIN" .
+find envs/aperium-apps-prod/argo -maxdepth 1 -type f | sort
+```
+
+The first command catches Terraform formatting drift. The second surfaces any placeholders you forgot to replace. The third confirms the ArgoCD app set is intact.

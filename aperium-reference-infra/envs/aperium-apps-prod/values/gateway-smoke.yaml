@@ -1,0 +1,13 @@
+gatewayApi:
+  enabled: true
+  gateway:
+    name: public-gw
+    namespace: gateway-infra
+  securityPolicyName: ""
+  iap:
+    enabled: false
+    clientID: ""
+    oauthSecretName: ""
+  hosts:
+    - name: gateway-smoke
+      host: gateway-smoke.apps.YOUR_DOMAIN

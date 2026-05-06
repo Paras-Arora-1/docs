@@ -1,0 +1,78 @@
+{{- if .Values.gatewayApi.enabled }}
+{{- $svcPort := .Values.service.port -}}
+{{- $backendSvc := include "aperium.backendFullname" . -}}
+{{- $frontendSvc := include "aperium.frontendFullname" . -}}
+{{- $provider := default "gke" .Values.gatewayApi.provider -}}
+{{- range .Values.gatewayApi.hosts }}
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: {{ .name }}-route
+  labels:
+    {{- include "aperium.labels" $ | nindent 4 }}
+    gke-gateway: "true"
+  annotations:
+    external-dns.alpha.kubernetes.io/hostname: {{ .host | quote }}
+spec:
+  hostnames:
+    - {{ .host | quote }}
+  parentRefs:
+    - name: {{ $.Values.gatewayApi.gateway.name }}
+      namespace: {{ $.Values.gatewayApi.gateway.namespace }}
+      {{- if eq $provider "azure" }}
+      {{- if $.Values.gatewayApi.gateway.listenerName }}
+      sectionName: {{ $.Values.gatewayApi.gateway.listenerName }}
+      {{- end }}
+      {{- else }}
+      sectionName: {{ printf "%s-%s-route" $.Release.Namespace .name }}
+      {{- end }}
+  rules:
+    {{- if .paths }}
+    {{- range .paths }}
+    - matches:
+        - path:
+            type: {{ .pathType | default "PathPrefix" }}
+            value: {{ .path | default "/" | quote }}
+      backendRefs:
+        - name: {{ if .frontend }}{{ $frontendSvc }}{{ else }}{{ $backendSvc }}{{ end }}
+          port: {{ $svcPort }}
+    {{- end }}
+    {{- else }}
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /
+      backendRefs:
+        - name: {{ $frontendSvc }}
+          port: {{ $svcPort }}
+    {{- end }}
+---
+{{- if and (eq $provider "azure") $.Values.gatewayApi.httpToHttpsRedirect.enabled }}
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: {{ .name }}-http-redirect
+  labels:
+    {{- include "aperium.labels" $ | nindent 4 }}
+    gke-gateway: "true"
+spec:
+  hostnames:
+    - {{ .host | quote }}
+  parentRefs:
+    - name: {{ $.Values.gatewayApi.gateway.name }}
+      namespace: {{ $.Values.gatewayApi.gateway.namespace }}
+      sectionName: {{ $.Values.gatewayApi.httpToHttpsRedirect.listenerName | default "http" }}
+  rules:
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /
+      filters:
+        - type: RequestRedirect
+          requestRedirect:
+            scheme: https
+            statusCode: {{ $.Values.gatewayApi.httpToHttpsRedirect.statusCode | default 301 }}
+---
+{{- end }}
+{{- end }}
+{{- end }}

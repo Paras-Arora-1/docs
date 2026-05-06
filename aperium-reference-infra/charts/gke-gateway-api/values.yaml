@@ -1,0 +1,16 @@
+gateway:
+  name: public-gw
+  namespace: gateway-infra
+  className: gke-l7-global-external-managed
+  http:
+    port: 80
+
+iap:
+  enabled: false
+  oauthSecretName: iap-oauth-credentials
+
+clusterExternalSecrets:
+  storeName: YOUR_CLUSTER_SECRET_STORE_NAME
+  refreshInterval: 1h
+  oauthSecret:
+    remoteKey: google-oauth-secret

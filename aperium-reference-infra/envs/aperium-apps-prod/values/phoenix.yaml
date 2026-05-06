@@ -1,0 +1,51 @@
+# Phoenix scaffold values for Aperium prod.
+# Keep ingress disabled until DNS delegation and external access policy are finalized.
+
+image:
+  tag: "version-12.28.1-nonroot"
+
+ingress:
+  enabled: false
+
+postgresql:
+  enabled: false
+
+persistence:
+  enabled: true
+  size: "20Gi"
+
+server:
+  workingDir: "/data"
+  enablePrometheus: true
+
+resources:
+  requests:
+    memory: 1Gi
+    cpu: 500m
+  limits:
+    cpu: "1"
+    memory: 2Gi
+
+securityContext:
+  pod:
+    enabled: true
+    fsGroup: 65532
+    runAsNonRoot: true
+    runAsUser: 65532
+    runAsGroup: 65532
+  container:
+    enabled: true
+    allowPrivilegeEscalation: false
+    capabilities:
+      drop:
+        - ALL
+    readOnlyRootFilesystem: true
+    runAsNonRoot: true
+    runAsUser: 65532
+    runAsGroup: 65532
+
+auth:
+  enableAuth: true
+  useSecureCookies: true
+  # Secret material is sourced via ExternalSecret (phoenix/phoenix-secret).
+  createSecret: false

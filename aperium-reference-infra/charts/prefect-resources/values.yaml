@@ -1,0 +1,36 @@
+secrets:
+  storeName: YOUR_CLUSTER_SECRET_STORE_NAME
+  adminPass:
+    name: prefect-admin-credentials
+
+baseJobTemplate:
+  configMapName: base-job-template
+
+autoscaling:
+  enabled: false
+  defaults:
+    minReplicaCount: 1
+    maxReplicaCount: 10
+    pollingInterval: 15
+    cooldownPeriod: 180
+    targetValue: "10"
+    valueLocation: work_queue_status.late_runs_count
+    auth:
+      secretNameSuffix: metrics-api-auth
+      triggerAuthNameSuffix: metrics-auth
+  workers: []
+
+cleanup:
+  imagePullBackoff:
+    enabled: false
+    schedule: "*/15 * * * *"
+    minAgeSeconds: 3600
+    reasonsRegex: "ImagePullBackOff|ErrImagePull"
+    image: "gcr.io/google.com/cloudsdktool/cloud-sdk:latest"
+    resources:
+      requests:
+        cpu: 250m
+        memory: 512Mi
+      limits:
+        cpu: "1"
+        memory: 1Gi

@@ -1,0 +1,100 @@
+{{- if .Values.invoiceExportCleanup.enabled }}
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: {{ include "aperium.fullname" . }}-invoice-export-cleanup
+  labels:
+    {{- include "aperium.labels" . | nindent 4 }}
+    app.kubernetes.io/component: invoice-export-cleanup
+spec:
+  schedule: {{ .Values.invoiceExportCleanup.schedule | quote }}
+  suspend: {{ .Values.invoiceExportCleanup.suspend }}
+  concurrencyPolicy: {{ .Values.invoiceExportCleanup.concurrencyPolicy }}
+  successfulJobsHistoryLimit: {{ .Values.invoiceExportCleanup.successfulJobsHistoryLimit }}
+  failedJobsHistoryLimit: {{ .Values.invoiceExportCleanup.failedJobsHistoryLimit }}
+  jobTemplate:
+    spec:
+      backoffLimit: {{ .Values.invoiceExportCleanup.backoffLimit }}
+      activeDeadlineSeconds: {{ .Values.invoiceExportCleanup.activeDeadlineSeconds }}
+      template:
+        metadata:
+          labels:
+            {{- include "aperium.labels" . | nindent 12 }}
+            app.kubernetes.io/component: invoice-export-cleanup
+        spec:
+          serviceAccountName: {{ include "aperium.serviceAccountName" . }}
+          restartPolicy: Never
+          {{- if .Values.cloudsql.enabled }}
+          initContainers:
+            - name: cloud-sql-proxy
+              restartPolicy: Always
+              image: "{{ .Values.cloudsql.image.repository }}:{{ .Values.cloudsql.image.tag }}"
+              imagePullPolicy: {{ .Values.cloudsql.image.pullPolicy }}
+              args:
+                - "--private-ip"
+                {{- if .Values.cloudsql.runConnectionTest }}
+                - "--run-connection-test"
+                {{- end }}
+                - "--auto-iam-authn"
+                - "--structured-logs"
+                - "--port={{ .Values.cloudsql.port }}"
+                - {{ .Values.cloudsql.connectString | quote }}
+              securityContext:
+                runAsNonRoot: true
+              resources:
+                {{- toYaml .Values.cloudsql.resources | nindent 16 }}
+          {{- end }}
+          containers:
+            - name: invoice-export-cleanup
+              image: "{{ .Values.image.backendRepository }}:{{ .Values.image.tag }}"
+              imagePullPolicy: {{ .Values.image.pullPolicy }}
+              command:
+                {{- toYaml .Values.invoiceExportCleanup.command | nindent 16 }}
+              env:
+                - name: SERVICE_VERSION
+                  value: {{ .Values.image.tag | quote }}
+                - name: SENTRY_RELEASE
+                  value: {{ .Values.image.tag | quote }}
+                {{- if .Values.databaseUrlExternalSecret.enabled }}
+                - name: DATABASE_URL
+                  valueFrom:
+                    secretKeyRef:
+                      name: {{ .Values.databaseUrlExternalSecret.targetName | quote }}
+                      key: DATABASE_URL
+                      optional: true
+                {{- end }}
+                {{- with .Values.invoiceExportCleanup.extraEnv }}
+                {{- toYaml . | nindent 16 }}
+                {{- end }}
+              {{- if or .Values.backendEnvSecret.enabled .Values.sharedStorage.enabled }}
+              volumeMounts:
+                {{- if .Values.backendEnvSecret.enabled }}
+                - name: backend-env
+                  mountPath: {{ .Values.backendEnvSecret.mountPath }}
+                  subPath: {{ .Values.backendEnvSecret.subPath }}
+                  readOnly: true
+                {{- end }}
+                {{- if .Values.sharedStorage.enabled }}
+                - name: shared-storage
+                  mountPath: {{ .Values.sharedStorage.mountPath | quote }}
+                {{- end }}
+              {{- end }}
+              resources:
+                {{- toYaml .Values.invoiceExportCleanup.resources | nindent 16 }}
+          {{- if or .Values.backendEnvSecret.enabled .Values.sharedStorage.enabled }}
+          volumes:
+            {{- if .Values.backendEnvSecret.enabled }}
+            - name: backend-env
+              secret:
+                secretName: {{ .Values.backendEnvSecret.name }}
+                items:
+                  - key: {{ .Values.backendEnvSecret.key }}
+                    path: .env
+            {{- end }}
+            {{- if .Values.sharedStorage.enabled }}
+            - name: shared-storage
+              persistentVolumeClaim:
+                claimName: {{ include "aperium.sharedStorageClaimName" . | quote }}
+            {{- end }}
+          {{- end }}
+{{- end }}

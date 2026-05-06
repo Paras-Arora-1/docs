@@ -1,0 +1,66 @@
+---
+title: "Getting started"
+description: "Tour the Admin Console and connect your organization to Aperium."
+icon: "shield"
+---
+
+<Frame caption="The Aperium Admin Console">
+  <img src="/images/admins/admin-console.png" alt="Aperium Admin Console showing the Permissions tab with tenant selector, impersonation controls, overview metrics, and recommended next steps." />
+</Frame>
+
+The Admin Console is where administrators configure Aperium for their tenant. This page introduces the console, lists the things an admin will typically do first, and points to the dedicated guides for integrations and access control. Ready to dive in? [Set up your first integration](/admins/integrations/overview).
+
+## Who can access the Admin Console
+
+The console is restricted to users whose role is `admin` or `super_admin`. Other users see an "Access denied" message if they try to reach it.
+
+- `admin` — Manages a single tenant: integrations, MCP servers, permissions, and guardrails.
+- `super_admin` — Cross-tenant administrator. Can switch the active tenant from a tenant selector at the top of the console and is the only role that can grant the `super_admin` role to other users.
+
+## Opening the Admin Console
+
+To reach the console from anywhere in the app, click your profile in the bottom-left corner of the sidebar and choose **Admin Console** from the menu. The option only appears for users with `admin` or `super_admin`.
+
+## Console layout
+
+The console opens with the title **Admin Console** and the subtitle "Manage role permissions, user permissions, guardrails, and MCP servers". From the top of the page, an admin can move between three primary tabs:
+
+<Steps>
+  <Step title="Permissions">
+    Manage role-based access control, group-based access to MCP servers, user-to-group assignments, and pre-assignments for users who have not yet signed in. See [Access control](/admins/access-control).
+  </Step>
+  <Step title="Guardrails">
+    Configure input and output guardrail policies. Available when the `enableGuardrails` feature flag is on.
+
+    {/* TODO: Document the guardrail policy editor once it is finalized. */}
+  </Step>
+  <Step title="MCP Servers">
+    View configured MCP servers, see whether each one is active, and add new connections. See [Integrations](/admins/integrations/overview).
+  </Step>
+</Steps>
+
+Super admins also see a **tenant switcher** at the top of the console. Selecting a tenant scopes every subsequent admin action — including permission changes and integration edits — to that tenant.
+
+## What to set up first
+
+Most administrators bring a new tenant online in this order:
+
+<Steps>
+  <Step title="Connect your business systems">
+    Add the integrations Aperium will use. You can do this in two places: the **admin onboarding flow** the first time you sign in, or the **MCP Servers** tab in the Admin Console at any point afterward. Tenant-wide systems like Salesforce, NetSuite, and Odoo are configured by an admin once. OAuth-based connectors like Google Workspace, Slack, Atlassian, and Microsoft 365 are linked per-user from the Integrations page. See [Integrations overview](/admins/integrations/overview).
+  </Step>
+  <Step title="Set up access control">
+    Map your SSO groups to Aperium groups, attach MCP server policies, and configure unit-level allow/deny rules where you need them. See [Access control](/admins/access-control).
+  </Step>
+  <Step title="Pre-assign roles for incoming users">
+    Use the **Invites** sub-tab under **Permissions** to pre-assign a role and group memberships to users by email. The assignment is applied automatically when the user first signs in.
+  </Step>
+</Steps>
+
+## Useful admin actions
+
+- **Impersonation.** Admins can act as another user (non-admin targets only) for support and debugging. Targets that hold `admin` or `super_admin` cannot be impersonated.
+- **Edit integrations.** Tenant integration edits open a confirmation dialog that lists how many users will be affected; changing the auth method or `extra_params` invalidates affected user credentials so they can re-link.
+- **Audit log.** The Permissions tab includes an audit-log sub-tab that records permission changes for review.
+
+{/* TODO: Add screenshots of the Admin Console once branding/UI assets are available. */}

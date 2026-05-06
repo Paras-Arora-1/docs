@@ -1,0 +1,38 @@
+---
+title: "Local LLM"
+description: "Run the primary model inside your network boundary with an OpenAI-compatible endpoint."
+icon: "brain"
+---
+
+The local model service must expose an internal OpenAI-compatible API that Aperium calls through the dedicated local provider. The provider must already be implemented and verified before your deployment begins.
+
+## Model-serving requirements
+
+- The model is pinned by exact artifact version, image digest, and serving configuration.
+- The serving endpoint is internal-only.
+- Readiness must mean the model is loaded and able to answer a small chat request.
+- Health checks must fail when the model is unloaded, the GPU is unavailable, or the inference runtime cannot allocate the required memory.
+- The model must support reliable structured tool/function calls with the tool schemas that Aperium sends for every enabled MCP connector.
+- Context length must be sufficient for the system prompt, conversation context, and the active MCP tool schema set.
+- GPU memory, batching, concurrency, and max-token settings must be sized from load tests, not defaults.
+
+## Required env profile
+
+Use the dedicated local OpenAI-compatible provider with an internal `base_url`:
+
+```bash
+DEFAULT_LLM_PROVIDER=<local_provider>
+PRIMARY_LLM_PROVIDER=<local_provider>
+PRIMARY_LLM_MODEL=gemma-4
+SECONDARY_LIGHTWEIGHT_LLM_PROVIDER=<local_provider>
+SECONDARY_LIGHTWEIGHT_LLM_MODEL=<smaller_local_model_or_same_model>
+ENABLE_LLM_FALLBACK=false
+```
+
+<Warning>
+  Do not configure `ENABLE_LLM_FALLBACK=true` to a cloud provider for this deployment shape unless your security model explicitly permits data leaving your network boundary.
+</Warning>
+
+## Why fallback is off
+
+The on-prem deployment shape exists to keep inference inside your network boundary. Re-enabling cloud fallback silently violates that contract. Treat any change to `ENABLE_LLM_FALLBACK` as a security review item: a release that flips it on must be accompanied by an explicit, documented exception from your security model.

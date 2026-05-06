@@ -1,0 +1,13 @@
+reloader:
+  watchGlobally: true
+
+  # Use annotation strategy to avoid ArgoCD patch conflicts.
+  reloadStrategy: annotations
+
+  # Structured logs are easier to filter in Cloud Logging.
+  logFormat: json
+  logLevel: info
+
+  # Watch both secrets and configmaps cluster-wide.
+  ignoreSecrets: false
+  ignoreConfigMaps: false

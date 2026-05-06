@@ -1,0 +1,26 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: gateway-smoke
+  namespace: argo-cd
+spec:
+  project: tools
+  sources:
+    - repoURL: https://github.com/YOUR_ORG/aperium-reference-infra.git
+      path: charts/gateway-smoke
+      targetRevision: main
+      helm:
+        valueFiles:
+          - $values/envs/aperium-apps-prod/values/gateway-smoke.yaml
+    - repoURL: https://github.com/YOUR_ORG/aperium-reference-infra.git
+      targetRevision: main
+      ref: values
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: gateway-smoke
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true

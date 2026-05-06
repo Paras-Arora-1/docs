@@ -1,0 +1,14 @@
+secrets:
+  storeName: YOUR_CLUSTER_SECRET_STORE_NAME
+  adminPass:
+    name: prefect-admin-credentials
+
+baseJobTemplate:
+  configMapName: base-job-template
+
+autoscaling:
+  enabled: false
+
+cleanup:
+  imagePullBackoff:
+    enabled: false

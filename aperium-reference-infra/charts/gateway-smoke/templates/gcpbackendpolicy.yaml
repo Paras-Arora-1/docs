@@ -1,0 +1,24 @@
+{{- if .Values.gatewayApi.enabled }}
+apiVersion: networking.gke.io/v1
+kind: GCPBackendPolicy
+metadata:
+  name: {{ include "gateway-smoke.fullname" . }}-policy
+  labels:
+    {{- include "gateway-smoke.labels" . | nindent 4 }}
+spec:
+  default:
+    {{- if .Values.gatewayApi.securityPolicyName }}
+    securityPolicy: {{ .Values.gatewayApi.securityPolicyName | quote }}
+    {{- end }}
+    {{- if .Values.gatewayApi.iap.enabled }}
+    iap:
+      enabled: true
+      clientID: {{ .Values.gatewayApi.iap.clientID | quote }}
+      oauth2ClientSecret:
+        name: {{ .Values.gatewayApi.iap.oauthSecretName }}
+    {{- end }}
+  targetRef:
+    group: ""
+    kind: Service
+    name: {{ include "gateway-smoke.fullname" . }}
+{{- end }}

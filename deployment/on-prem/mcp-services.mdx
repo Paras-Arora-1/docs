@@ -1,0 +1,74 @@
+---
+title: "MCP services"
+description: "Run each connector as an in-cluster HTTP MCP service and wire it to the backend."
+icon: "plug"
+---
+
+On-prem deployments expose every connector you enable (Odoo, Salesforce, NetSuite, Arena, Malbek, Prefect, BigQuery, Postgres, Atlassian, Google Workspace, Slack, Microsoft 365, Epic, GCS data lake, and any custom connector) as a dedicated in-cluster HTTP MCP service. The backend reaches each one over the cluster network using a per-service auth token.
+
+## Service shape
+
+The pattern below applies to every MCP connector. Substitute `<connector>` with the connector identifier (for example `odoo`, `salesforce`, `netsuite`).
+
+| Setting | Value |
+| --- | --- |
+| Kubernetes service name | `aperium-mcp-<connector>` |
+| MCP module | `mcp_servers.<connector>_http` (or the connector's module) |
+| Service port | Per connector (each chart pins its own; for example `8081`) |
+| MCP endpoint | `/mcp` or `/mcp/` (must match backend configuration) |
+| Liveness | `/healthz` |
+| Readiness | `/readyz` |
+| Metrics | `/metrics` |
+| Auth | Bearer token via `MCP_AUTH_TOKEN` |
+
+The Helm charts in `charts/aperium-mcp-common` define the shared service shape. The full set of in-cluster MCP services is listed in [Dependencies](/deployment/gcp/dependencies); on-prem deployments deploy the subset you need.
+
+## Upstream credentials
+
+Connector credentials are not configured through Kubernetes env vars on the MCP pods. An admin enters them through the Aperium UI, either the **admin onboarding flow** on first sign-in or the **Admin Console's MCP Servers tab** afterward, and Aperium stores them encrypted against the tenant in the application database. The `aperium-mcp-<connector>` pod reads the credentials at runtime through Aperium, scoped to the calling tenant.
+
+For the per-connector field list (URL, username, client secret, and so on), see [Supported integrations](/admins/integrations/supported/overview).
+
+<Note>
+  This means the on-prem deployment does **not** need ConfigMaps or Kubernetes Secrets per connector for upstream credentials. The shared platform secrets (`aperium-backend-yml`, `aperium-mcp-auth-token`, the database URL, the Qdrant API key, and so on) still apply. See the [GCP secret contract](/deployment/gcp/secrets) for the reference list, and substitute your on-prem secret backend (Vault, External Secrets, Sealed Secrets, or an approved Kubernetes Secret flow).
+</Note>
+
+## Backend routing
+
+For each deployed connector, the backend must route the connector to its in-cluster HTTP service:
+
+```bash
+MCP_SERVER_TRANSPORT_<connector>=http
+MCP_SERVER_URL_<connector>=http://aperium-mcp-<connector>.<namespace>.svc.cluster.local:<port>/mcp
+MCP_SERVER_TIMEOUT_<connector>=30s
+```
+
+Concrete example for Odoo:
+
+```bash
+MCP_SERVER_TRANSPORT_odoo=http
+MCP_SERVER_URL_odoo=http://aperium-mcp-odoo.<namespace>.svc.cluster.local:8081/mcp
+MCP_SERVER_TIMEOUT_odoo=30s
+```
+
+Repeat for every connector you deploy.
+
+## Operational requirements
+
+These rules apply to every MCP service in the deployment.
+
+- MCP readiness must **fail closed** when the auth token, the upstream credentials, or tool discovery are unavailable.
+- The backend must **remain ready** when an MCP service is unavailable. Tool calls should fail with a clear MCP service error rather than crashing the backend.
+- Enable request-id propagation between backend and MCP service logs.
+- Keep MCP write tools at `max_attempts=1` unless a specific read-only tool is allowlisted for retry.
+- Use a per-service MCP auth token unless the environment has a documented shared-token policy.
+
+## Representative smoke gates
+
+For every deployed connector, the following gates should pass before declaring the rollout done:
+
+<Check>`GET /healthz` returns 200.</Check>
+<Check>`GET /readyz` returns 200 after tool discovery.</Check>
+<Check>`MCP tools/list` returns the expected tool inventory for that connector.</Check>
+<Check>A representative read tool succeeds against the target upstream system (for example, `odoo_search_sales_orders` for Odoo or an equivalent read tool for the connector under test).</Check>
+<Check>One approved write-path test succeeds in a non-production upstream environment before production write access is enabled.</Check>

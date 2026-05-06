@@ -1,0 +1,31 @@
+{{- if and .Values.gatewayApi.enabled (eq (default "gke" .Values.gatewayApi.provider) "gke") (or .Values.gatewayApi.securityPolicyName .Values.gatewayApi.iap.enabled .Values.gatewayApi.backendPolicy.timeoutSec) }}
+{{- $targets := list (include "aperium.backendFullname" .) (include "aperium.frontendFullname" .) -}}
+{{- range $svc := $targets }}
+apiVersion: networking.gke.io/v1
+kind: GCPBackendPolicy
+metadata:
+  name: {{ $svc }}-policy
+  labels:
+    {{- include "aperium.labels" $ | nindent 4 }}
+spec:
+  default:
+    {{- if $.Values.gatewayApi.securityPolicyName }}
+    securityPolicy: {{ $.Values.gatewayApi.securityPolicyName | quote }}
+    {{- end }}
+    {{- if $.Values.gatewayApi.iap.enabled }}
+    iap:
+      enabled: true
+      clientID: {{ $.Values.gatewayApi.iap.clientID | quote }}
+      oauth2ClientSecret:
+        name: {{ $.Values.gatewayApi.iap.oauthSecretName }}
+    {{- end }}
+    {{- if $.Values.gatewayApi.backendPolicy.timeoutSec }}
+    timeoutSec: {{ $.Values.gatewayApi.backendPolicy.timeoutSec }}
+    {{- end }}
+  targetRef:
+    group: ""
+    kind: Service
+    name: {{ $svc }}
+---
+{{- end }}
+{{- end }}

@@ -1,0 +1,8 @@
+apiVersion: v2
+name: aperium-mcp-common
+description: Helm chart for Aperium MCP Common HTTP service.
+
+type: application
+
+version: 0.1.0
+appVersion: "1.0.0"

@@ -1,0 +1,74 @@
+{{- if .Values.autoscaling.enabled }}
+{{- $names := dict }}
+{{- range .Values.autoscaling.workers }}
+{{- if .enabled }}
+{{- $name := required "autoscaling.workers[].name is required" .name }}
+{{- if hasKey $names $name }}{{ fail (printf "autoscaling worker name must be unique: %s" $name) }}{{- end }}
+{{- $_ := set $names $name true }}
+{{- $queueUrl := required (printf "autoscaling worker %s queueUrl is required" $name) .queueUrl }}
+{{- $targetValue := default $.Values.autoscaling.defaults.targetValue .targetValue }}
+{{- $valueLocation := default $.Values.autoscaling.defaults.valueLocation .valueLocation }}
+{{- if and (ne $targetValue "") (eq $valueLocation "") }}{{ fail (printf "autoscaling worker %s valueLocation is required when targetValue is set" $name) }}{{- end }}
+{{- $scaledObjectName := default $name .scaledObjectName }}
+{{- $scaleTargetRefName := default $name .scaleTargetRefName }}
+{{- $auth := default (dict) .auth }}
+{{- $authSecretName := default (printf "%s-%s" $name $.Values.autoscaling.defaults.auth.secretNameSuffix) (get $auth "secretName") }}
+{{- $triggerAuthName := default (printf "%s-%s" $name $.Values.autoscaling.defaults.auth.triggerAuthNameSuffix) (get $auth "triggerAuthName") }}
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: {{ $authSecretName }}
+spec:
+  refreshInterval: 1h0m0s
+  secretStoreRef:
+    kind: ClusterSecretStore
+    name: {{ $.Values.secrets.storeName }}
+  target:
+    name: {{ $authSecretName }}
+    creationPolicy: Owner
+    template:
+      engineVersion: v2
+      type: Opaque
+      data:
+        username: '{{ printf "{{ index (splitList \":\" (index . \"auth-string\")) 0 }}" }}'
+        password: '{{ printf "{{ index (splitList \":\" (index . \"auth-string\")) 1 }}" }}'
+  dataFrom:
+    - extract:
+        key: {{ $.Values.secrets.adminPass.name }}
+---
+apiVersion: keda.sh/v1alpha1
+kind: TriggerAuthentication
+metadata:
+  name: {{ $triggerAuthName }}
+spec:
+  secretTargetRef:
+    - parameter: username
+      name: {{ $authSecretName }}
+      key: username
+    - parameter: password
+      name: {{ $authSecretName }}
+      key: password
+---
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata:
+  name: {{ $scaledObjectName }}
+spec:
+  scaleTargetRef:
+    name: {{ $scaleTargetRefName }}
+  minReplicaCount: {{ default $.Values.autoscaling.defaults.minReplicaCount .minReplicaCount }}
+  maxReplicaCount: {{ default $.Values.autoscaling.defaults.maxReplicaCount .maxReplicaCount }}
+  pollingInterval: {{ default $.Values.autoscaling.defaults.pollingInterval .pollingInterval }}
+  cooldownPeriod: {{ default $.Values.autoscaling.defaults.cooldownPeriod .cooldownPeriod }}
+  triggers:
+    - type: metrics-api
+      metadata:
+        targetValue: {{ $targetValue | quote }}
+        url: {{ $queueUrl | quote }}
+        valueLocation: {{ $valueLocation | quote }}
+        authMode: basic
+      authenticationRef:
+        name: {{ $triggerAuthName }}
+{{- end }}
+{{- end }}
+{{- end }}

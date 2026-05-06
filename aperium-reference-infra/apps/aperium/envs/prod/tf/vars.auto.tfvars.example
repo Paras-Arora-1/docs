@@ -1,0 +1,23 @@
+# Copy to vars.auto.tfvars and replace project-specific values for your environment.
+gcp_project_id   = "YOUR_GCP_PROJECT_ID"
+gcp_region       = "us-central1"
+gcp_zone         = "us-central1-a"
+gcp_network_path = "projects/YOUR_GCP_PROJECT_ID/global/networks/YOUR_NETWORK_NAME"
+
+enable_artifact_registry        = true
+enable_storage_bucket           = true
+enable_secret_manager           = true
+enable_bigquery                 = true
+enable_cloudsql                 = false
+adopt_existing_aperium_database = false # set true only for one migration apply if DB already exists outside postgresql state
+enable_postgresql_grants        = false
+enable_redis                    = false
+
+storage_bucket_name = "YOUR_SHARING_BUCKET_NAME"
+
+db_machine_type = "db-custom-1-3840"
+db_edition      = "ENTERPRISE"
+
+# Optional overrides for KEDA autoscaling DB connectivity secret generation.
+# aperium_keda_db_secret_id = "aperium-keda-db-url"
+# aperium_keda_db_username  = "aperium_keda_reader"

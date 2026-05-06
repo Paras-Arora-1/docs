@@ -1,0 +1,17 @@
+tfc:
+  organization: YOUR_TFC_ORG
+  # Shared pool used by multiple workspace runs that need private network reachability.
+  poolName: YOUR_TFC_AGENT_POOL_NAME
+
+clusterSecretStore:
+  name: YOUR_CLUSTER_SECRET_STORE_NAME
+
+secrets:
+  multi:
+    gcpName: tfc-agent-config
+    teamTokenKey: team_token
+
+autoscaling:
+  enabled: true
+  params:
+    maxReplicas: 2

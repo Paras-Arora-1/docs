@@ -1,0 +1,10 @@
+gateway:
+  name: public-gw
+  namespace: gateway-infra
+
+httpRouteSelector:
+  matchLabels:
+    gke-gateway: "true"
+
+tls:
+  secretSuffix: "-tls"

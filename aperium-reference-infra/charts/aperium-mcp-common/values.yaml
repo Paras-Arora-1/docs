@@ -1,0 +1,135 @@
+replicaCount: 1
+revisionHistoryLimit: 3
+terminationGracePeriodSeconds: 30
+minReadySeconds: 0
+strategy: {}
+
+image:
+  repository: ""
+  pullPolicy: IfNotPresent
+  tag: "main"
+
+app:
+  port: 8081
+  command:
+    - /bin/sh
+    - -c
+  args:
+    - exec python -m ${MCP_SERVER_MODULE}
+  preStop:
+    enabled: false
+    sleepSeconds: 20
+  livenessProbe:
+    httpGet:
+      path: /healthz
+      port: http
+    initialDelaySeconds: 10
+    periodSeconds: 10
+    timeoutSeconds: 3
+    failureThreshold: 3
+  readinessProbe:
+    httpGet:
+      path: /readyz
+      port: http
+    initialDelaySeconds: 10
+    periodSeconds: 10
+    timeoutSeconds: 3
+    failureThreshold: 3
+  startupProbe:
+    httpGet:
+      path: /healthz
+      port: http
+    periodSeconds: 5
+    timeoutSeconds: 3
+    failureThreshold: 60
+
+imagePullSecrets: []
+nameOverride: ""
+fullnameOverride: ""
+
+podAnnotations: {}
+podLabels: {}
+
+deploymentAnnotations: {}
+
+podSecurityContext: {}
+
+securityContext: {}
+
+serviceAccount:
+  create: false
+  name: ""
+
+service:
+  type: ClusterIP
+  port: 8081
+  sessionAffinity: None
+  sessionAffinityConfig: {}
+
+resources:
+  limits:
+    cpu: 500m
+    memory: 512Mi
+  requests:
+    cpu: 100m
+    memory: 128Mi
+
+cloudsql:
+  enabled: false
+  connectString: ""
+  image:
+    url: gcr.io/cloud-sql-connectors/cloud-sql-proxy
+    tag: 2.14.1
+  resources:
+    requests:
+      memory: "128Mi"
+      cpu: "100m"
+
+extraEnv: []
+extraVolumes: []
+extraVolumeMounts: []
+
+sharedStorage:
+  enabled: false
+  claimName: aperium-shared
+  mountPath: /shared
+
+secrets:
+  refreshInterval: 1h
+  clusterSecretStoreName: ""
+  name: ""
+  authToken:
+    secretKey: mcp_auth_token
+    gcpSecretName: ""
+
+prometheus:
+  serviceMonitor:
+    enabled: false
+    endpoints:
+      - port: http
+        path: /metrics
+        interval: 30s
+        scrapeTimeout: 10s
+
+networkPolicy:
+  enabled: false
+  allowSameNamespace: true
+  additionalIngress: []
+
+podDisruptionBudget:
+  enabled: false
+  minAvailable: 1
+
+syncWaves:
+  secret: "0"
+  service: "1"
+  deployment: "1"
+  serviceMonitor: "1"
+  networkPolicy: "1"
+  podDisruptionBudget: "1"
+
+nodeSelector: {}
+
+tolerations: []
+
+affinity: {}

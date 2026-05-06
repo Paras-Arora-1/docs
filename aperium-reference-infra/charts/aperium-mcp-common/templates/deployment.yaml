@@ -1,0 +1,149 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "aperium-mcp-common.fullname" . }}
+  labels:
+    {{- include "aperium-mcp-common.labels" . | nindent 4 }}
+  annotations:
+    argocd.argoproj.io/sync-wave: {{ .Values.syncWaves.deployment | quote }}
+    {{- with .Values.deploymentAnnotations }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  revisionHistoryLimit: {{ .Values.revisionHistoryLimit | default 3 }}
+  {{- with .Values.minReadySeconds }}
+  minReadySeconds: {{ . }}
+  {{- end }}
+  {{- with .Values.strategy }}
+  strategy:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  selector:
+    matchLabels:
+      {{- include "aperium-mcp-common.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      {{- with .Values.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      labels:
+        {{- include "aperium-mcp-common.selectorLabels" . | nindent 8 }}
+        {{- with .Values.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      serviceAccountName: {{ include "aperium-mcp-common.serviceAccountName" . }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      terminationGracePeriodSeconds: {{ .Values.terminationGracePeriodSeconds | default 30 }}
+      containers:
+        - name: {{ .Chart.Name }}
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          {{- with .Values.app.command }}
+          command:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.app.args }}
+          args:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.app.port }}
+              protocol: TCP
+          {{- $hasGracefulTimeout := hasKey .Values.app "gracefulShutdownTimeoutSeconds" }}
+          {{- $hasKeepAliveTimeout := hasKey .Values.app "keepAliveTimeoutSeconds" }}
+          {{- if or $hasGracefulTimeout $hasKeepAliveTimeout .Values.extraEnv }}
+          env:
+            {{- if $hasGracefulTimeout }}
+            - name: MCP_GRACEFUL_SHUTDOWN_TIMEOUT_SECONDS
+              value: {{ .Values.app.gracefulShutdownTimeoutSeconds | quote }}
+            {{- end }}
+            {{- if $hasKeepAliveTimeout }}
+            - name: MCP_KEEP_ALIVE_TIMEOUT_SECONDS
+              value: {{ .Values.app.keepAliveTimeoutSeconds | quote }}
+            {{- end }}
+            {{- with .Values.extraEnv }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          {{- end }}
+          {{- if .Values.app.preStop.enabled }}
+          lifecycle:
+            preStop:
+              exec:
+                command:
+                  - /bin/sh
+                  - -c
+                  - |
+                    python -c 'import time, urllib.request
+                    url = "http://127.0.0.1:{{ .Values.app.port }}/drainz"
+                    for _ in range(4):
+                        try:
+                            urllib.request.urlopen(urllib.request.Request(url, data=b""), timeout=1.0)
+                            break
+                        except Exception:
+                            time.sleep(0.25)' || python3 -c 'import time, urllib.request
+                    url = "http://127.0.0.1:{{ .Values.app.port }}/drainz"
+                    for _ in range(4):
+                        try:
+                            urllib.request.urlopen(urllib.request.Request(url, data=b""), timeout=1.0)
+                            break
+                        except Exception:
+                            time.sleep(0.25)' || true
+                    sleep {{ .Values.app.preStop.sleepSeconds | int }}
+          {{- end }}
+          {{- with .Values.app.startupProbe }}
+          startupProbe:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          livenessProbe:
+            {{- toYaml .Values.app.livenessProbe | nindent 12 }}
+          readinessProbe:
+            {{- toYaml .Values.app.readinessProbe | nindent 12 }}
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          {{- if or .Values.extraVolumeMounts .Values.sharedStorage.enabled }}
+          volumeMounts:
+            {{- with .Values.extraVolumeMounts }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+            {{- if .Values.sharedStorage.enabled }}
+            - name: shared-storage
+              mountPath: {{ .Values.sharedStorage.mountPath | quote }}
+            {{- end }}
+          {{- end }}
+        {{- if .Values.cloudsql.enabled }}
+        - {{- include "aperium-mcp-common.cloudsqlSidecar" . | nindent 10 }}
+        {{- end }}
+      {{- if or .Values.extraVolumes .Values.sharedStorage.enabled }}
+      volumes:
+        {{- with .Values.extraVolumes }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+        {{- if .Values.sharedStorage.enabled }}
+        - name: shared-storage
+          persistentVolumeClaim:
+            claimName: {{ .Values.sharedStorage.claimName | quote }}
+        {{- end }}
+      {{- end }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}

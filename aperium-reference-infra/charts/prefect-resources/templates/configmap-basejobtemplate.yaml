@@ -1,0 +1,9 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Values.baseJobTemplate.configMapName | default "baseJobTemplate" }}
+data:
+  # See: https://artifacthub.io/packages/helm/prefect/prefect-worker?modal=values
+  # We might eventually want to separate the worker's SA with one specifically for the invoked jobs, but for now they're functionally the same.
+  baseJobTemplate.json: |
+    {{- .Files.Get "prefect-objects/base_job_template.json"  | nindent 4 }}

@@ -1,0 +1,52 @@
+---
+title: "Configuration"
+description: "Baseline application env contract and tool-loading settings for on-prem."
+icon: "gear"
+---
+
+Application secrets and environment settings must be delivered consistently to the backend, worker, scheduler, migration, and MCP workloads that need them.
+
+## Required baseline env contract
+
+```bash
+DATABASE_URL=postgresql://...
+REDIS_ENABLED=true
+REDIS_URL=redis://...
+MULTI_POD_ENABLED=true
+
+FILE_UPLOAD_STORAGE_BACKEND=local
+FILE_UPLOAD_LOCAL_IS_SHARED=true
+FILE_UPLOAD_LOCAL_DIR=/shared
+
+TABULAR_QUERY_BACKEND=postgresql
+TABULAR_POSTGRESQL_SCHEMA=tabular
+
+QDRANT_MODE=server
+QDRANT_HOST=qdrant.<namespace>.svc.cluster.local
+QDRANT_PORT=6333
+
+LIBREOFFICE_SERVICE_URL=http://aperium-libreoffice.<namespace>.svc.cluster.local:8091
+DOCUMENT_PROCESSING_MODE=worker
+```
+
+Substitute `<namespace>` with the namespace where each in-cluster service is deployed.
+
+## Tool loading with capability routing disabled
+
+This deployment shape assumes full allowed-scope tool loading instead of request-time capability selection. Set the following so the backend hydrates the expected tool set on every request:
+
+```bash
+TOOL_LOADING_CAPABILITY_ROUTING_ENABLED=false
+DEFERRED_TOOL_LOADING_ENABLED=true
+CONTEXT_MANAGEMENT_ENABLED=true
+MAX_TOOLS_PER_REQUEST=50
+MAX_TOOL_TOKENS=5000
+```
+
+<Note>
+  These values reflect the on-prem requirements contract. They are not necessarily the same defaults the cloud-hosted deployment uses. Treat them as the baseline for this deployment shape rather than as universal defaults.
+</Note>
+
+## Where these values are sourced
+
+The values above must be delivered through your approved secret-management flow (Vault, External Secrets, Sealed Secrets, or an equivalent Kubernetes Secret pipeline). Application workloads — backend, document worker, background scheduler, migration job, and the in-cluster MCP services — must all see the relevant subset of this env at boot.

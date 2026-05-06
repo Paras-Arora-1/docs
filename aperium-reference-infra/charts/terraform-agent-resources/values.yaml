@@ -1,0 +1,32 @@
+tfc:
+  organization: YOUR_TFC_ORG
+  # Shared pool used by multiple workspace runs that need private network reachability.
+  poolName: YOUR_TFC_AGENT_POOL_NAME
+
+clusterSecretStore:
+  name: YOUR_CLUSTER_SECRET_STORE_NAME
+
+secrets:
+  multi:
+    gcpName: tfc-agent-config
+    teamTokenKey: team_token
+
+autoscaling:
+  enabled: true
+  params:
+    minReplicas: 0
+    maxReplicas: 2
+    cooldownPeriod:
+      scaleUpSeconds: 10
+      scaleDownSeconds: 60
+
+agentDeployment:
+  spec:
+    containers:
+      - name: tfc-agent
+        image: hashicorp/tfc-agent:1.28.2
+        resources:
+          limits:
+            ephemeral-storage: 12Gi
+          requests:
+            ephemeral-storage: 10Gi

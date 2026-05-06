@@ -1,0 +1,187 @@
+---
+title: "Deployment order"
+description: "Ten-phase rollout from shared environment bootstrap to verified Aperium deployment."
+icon: "list-ol"
+---
+
+The deployment follows a strict order. Each phase produces outputs the next phase depends on. Skipping ahead is the most common cause of stuck rollouts.
+
+## Phase 0 — Prerequisites
+
+Confirm the items in [Prerequisites](/deployment/gcp/prerequisites) are in place: GCP project, Terraform Cloud workspaces, Terraform credentials for GCP, your deployment repo, the GitHub App for ArgoCD, and authority to delegate parent DNS.
+
+## Phase 1 — Prepare your deployment repo
+
+<Steps>
+  <Step title="Replace the repo URL">
+    Replace the placeholder `https://github.com/YOUR_ORG/YOUR_REPO.git` everywhere it appears.
+  </Step>
+  <Step title="Copy and edit Terraform inputs">
+    Start from:
+
+    - `envs/aperium-apps-prod/tf/vars.auto.tfvars.example`
+    - `apps/aperium/envs/prod/tf/vars.auto.tfvars.example`
+  </Step>
+  <Step title="Replace placeholders">
+    Replace remaining placeholders in values and Terraform files (for example `YOUR_GCP_PROJECT_ID`, `YOUR_GCP_REGION`, `YOUR_DOMAIN`, `YOUR_CLUSTER_SECRET_STORE_NAME`, `YOUR_TFC_ORG`).
+  </Step>
+  <Step title="Use vars.reference.tfvars only as reference">
+    These files are snapshots and are not auto-loaded.
+  </Step>
+  <Step title="Set sensitive Terraform vars">
+    Set `github_app_private_key` as a sensitive variable in the shared env workspace.
+  </Step>
+</Steps>
+
+## Phase 2 — Bootstrap the shared environment
+
+Apply `envs/aperium-apps-prod/tf`. This creates the shared network and cluster substrate plus ArgoCD bootstrap dependencies.
+
+Expected outputs include:
+
+- DNS delegation NS records
+- GKE cluster name
+- Network self link
+- NAT IPs
+- Cloud Armor policy names
+- The `tfc-agent-config` secret container
+
+## Phase 3 — Delegate DNS
+
+Use the `delegation_ns_records` output from the shared env stack to delegate the managed subdomain from the parent DNS provider. Without this, public hostnames such as `www.apps.YOUR_DOMAIN` will not resolve correctly.
+
+## Phase 4 — Seed Secret Manager payloads
+
+Load the payloads listed in [Secrets](/deployment/gcp/secrets). Sequence notes:
+
+- The shared env stack creates the `tfc-agent-config` container, but you still need to add the `team_token` payload.
+- `external-secrets` cannot materialize Kubernetes secrets until the backing GCP Secret Manager payloads exist.
+- `prefect-admin-credentials` should exist before syncing the Prefect app.
+- `phoenix-auth` and `qdrant-api-keys` should exist before validating those services.
+- `aperium-backend-yml` and `aperium-mcp-auth-token` must exist before the Aperium stack becomes healthy.
+
+## Phase 5 — Wait for ArgoCD platform prerequisites
+
+ArgoCD should reconcile these foundational apps:
+
+- `cert-manager`
+- `external-secrets`
+- `external-dns`
+- `gke-gateway`
+- `gateway-smoke`
+- `keda`
+- `kyverno`
+- `stakater-reloader`
+- `terraform-operator`
+
+Recommended checks:
+
+- ArgoCD applications report Healthy / Synced.
+- `ClusterSecretStore` exists and is Ready.
+- The gateway namespace and the public gateway exist.
+- The DNS controller is reconciling records.
+
+## Phase 6 — Apply Aperium app-specific Terraform
+
+Apply `apps/aperium/envs/prod/tf`. This stack creates the app-owned dependency layer.
+
+**Minimum commonly-needed resources**
+
+- Runtime GSA and Workload Identity bindings
+- Artifact Registry repo
+- GCS bucket
+- Secret Manager secret containers
+- BigQuery dataset
+
+**Optional but usually needed for full deployment**
+
+- Cloud SQL
+- PostgreSQL grants
+- Redis
+- Generated KEDA DB secret version
+
+<Warning>
+  If you enable the PostgreSQL-provider-backed resources, run this workspace from a private-network-reachable Terraform agent pool. Otherwise the Terraform run cannot reach the database endpoints.
+</Warning>
+
+## Phase 7 — Sync Prefect and create `aperium-pool`
+
+The Prefect app is intentionally minimal. It includes:
+
+- `prefect-server`
+- `prefect-worker-aperium`
+- The local `prefect-resources` chart
+
+Before syncing, make sure you have provided:
+
+- A Prefect backing Cloud SQL instance (`YOUR_PREFECT_CLOUDSQL_INSTANCE`).
+- A Prefect runtime GSA, for example `prefect@YOUR_GCP_PROJECT_ID.iam.gserviceaccount.com`.
+- The `prefect-admin-credentials` secret in your external secret store.
+
+Recommended bootstrap:
+
+```bash
+kubectl -n prefect port-forward svc/prefect-server 4200:4200
+export PREFECT_API_URL=http://127.0.0.1:4200/api
+prefect work-pool create aperium-pool --type kubernetes
+prefect work-pool ls
+```
+
+You can also create the pool from the Prefect UI after port-forwarding to the server.
+
+Proceed to the next phase only when:
+
+- Prefect server is healthy.
+- `prefect-worker-aperium` is healthy.
+- `aperium-pool` exists.
+
+## Phase 8 — Validate supporting runtime services
+
+Before enabling or debugging the core app, verify:
+
+- `prefect` is healthy and `aperium-pool` exists.
+- `qdrant` is healthy and has API key secrets.
+- `phoenix` is healthy and has auth secrets.
+
+These are part of the operational dependency set around Aperium, even though only some of them are called by the main app at runtime.
+
+## Phase 9 — Roll out Aperium and the MCP services
+
+The `aperium` ArgoCD application deploys:
+
+- Core Aperium frontend, backend, worker, and migrations.
+- A dedicated background scheduler when enabled in values.
+- Cleanup cronjobs for invoice export, file cache, and PostgreSQL tabular cleanup when enabled in values.
+- In-cluster MCP services built from `charts/aperium-mcp-common`.
+
+MCP values files:
+
+- `aperium-mcp-common.yaml`
+- `aperium-mcp-prefect.yaml`
+- `aperium-mcp-salesforce.yaml`
+- `aperium-mcp-malbek.yaml`
+- `aperium-mcp-arena.yaml`
+- `aperium-mcp-netsuite.yaml`
+- `aperium-mcp-odoo.yaml`
+- `aperium-mcp-google-workspace.yaml`
+- `aperium-mcp-slack-workspace.yaml`
+- `aperium-mcp-atlassian.yaml`
+- `aperium-mcp-epic.yaml`
+- `aperium-mcp-gcs-datalake.yaml`
+
+The current prod-style `aperium.yaml` directly references in-cluster URLs for these MCP services plus `aperium-retrieval`.
+
+## Phase 10 — Final verification
+
+At minimum verify:
+
+- ArgoCD apps are Healthy / Synced.
+- `prefect-server` and `prefect-worker-aperium` pods are healthy.
+- `aperium-pool` exists in Prefect.
+- The `qdrant` service responds and its secrets are mounted.
+- The `phoenix` pods are healthy and `phoenix-secret` exists.
+- `aperium` backend, worker, and frontend pods are Ready.
+- The background scheduler and any enabled cleanup cronjobs are healthy.
+- ExternalSecret-generated Kubernetes secrets exist in the expected namespaces.
+- Public routes resolve after DNS propagation.
+- BigQuery, GCS, and Cloud SQL access works from the workload identity.

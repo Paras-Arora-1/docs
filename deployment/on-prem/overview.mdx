@@ -1,0 +1,94 @@
+---
+title: "Overview"
+description: "Requirements for running Aperium on an on-premises Kubernetes cluster."
+icon: "server"
+---
+
+This section captures the requirements for running Aperium on an on-premises Kubernetes cluster, with **MCP integrations exposed as in-cluster HTTP services**, **a local model server running the primary LLM** (for example a Gemma-family checkpoint exposed under a deployment name such as `gemma-4`), and **capability tool routing disabled**. The same shape applies regardless of which connectors you enable: Odoo, Salesforce, NetSuite, Arena, Malbek, Atlassian, Google Workspace, Slack, Microsoft 365, BigQuery, Postgres, the GCS data lake, Epic, or any custom connector.
+
+<Note>
+  These pages are a requirements document, not a complete Helm overlay or a deployment-specific runbook. Use them to size your cluster, agree the contract internally, and plan the rollout. The [GCP reference deployment](/deployment/gcp/overview) remains the existing deployment contract that this on-prem shape adapts.
+</Note>
+
+## Assumptions
+
+- Aperium is deployed by GitOps or an equivalent declarative release process.
+- Your Kubernetes cluster can run stateful workloads, GPU workloads, ingress, TLS, and network policies.
+- Every upstream system reached by an MCP connector (Odoo, Salesforce, on-prem databases, internal Atlassian, and so on) is reachable from your cluster over private network paths.
+- Local LLM inference is served inside your network boundary.
+- The dedicated local OpenAI-compatible provider has been implemented and verified before your deployment begins.
+
+## Required runtime topology
+
+### Minimum application workloads
+
+- `aperium-frontend`
+- `aperium-backend`
+- Database migration job
+- Document worker
+- Background scheduler, when scheduler mode is enabled
+- Cleanup cronjobs for file cache, invoice export, and PostgreSQL tabular cleanup, when enabled
+- `aperium-libreoffice` (optional, for Excel generation)
+- `aperium-mcp-common` (in-process mode)
+- One `aperium-mcp-<connector>` deployment per enabled connector (HTTP mode)
+- A local model-serving deployment or model-serving platform
+
+The set of `aperium-mcp-<connector>` deployments is determined by which connectors you enable. The full catalog of supported connectors is listed in [Dependencies](/deployment/gcp/dependencies) and [Supported integrations](/admins/integrations/supported/overview).
+
+### Minimum data and support services
+
+- PostgreSQL for the application database.
+- Redis when `MULTI_POD_ENABLED=true`.
+- Qdrant when vector search, memory, or semantic retrieval features are enabled.
+- Shared file storage through a RWX volume or an object-store equivalent.
+- An observability stack for logs, metrics, traces, and alerting.
+
+## On-prem replacements for GCP reference services
+
+The on-prem deployment must replace GCP-specific reference services with equivalents you own.
+
+| GCP reference dependency | On-prem requirement |
+| --- | --- |
+| Cloud SQL | Managed or operator-owned PostgreSQL |
+| Secret Manager / External Secrets | Vault, External Secrets, Sealed Secrets, or an approved Kubernetes Secret flow |
+| GCS upload bucket | RWX PVC or a supported object-store replacement |
+| GKE Gateway / Cloud Armor | Ingress controller, internal load balancer, WAF, and firewall policy |
+| Artifact Registry | Private image registry mirrored inside your network boundary |
+| Workload Identity | Kubernetes service accounts plus your IAM/RBAC mechanism |
+
+<Warning>
+  If the deployment uses object storage instead of RWX local storage, that object storage must be wired through a supported backend before release. Do not leave GCS-specific environment variables half-configured in an on-prem environment.
+</Warning>
+
+## Kubernetes platform requirements
+
+The cluster must provide:
+
+- Namespaces for application, data, model serving, and observability workloads.
+- Ingress with TLS termination and websocket support for `/ws`.
+- NetworkPolicy enforcement between frontend, backend, the in-cluster MCP services, the model server, every upstream system the MCP services call, PostgreSQL, Redis, Qdrant, and observability targets.
+- A default storage class for normal PVCs, plus a shared RWX storage class for uploaded files when using local shared storage.
+- GPU node pools for local inference, including the NVIDIA device plugin or your standard equivalent.
+- Node labels, taints, and tolerations that keep GPU inference pods off general application nodes.
+- ImagePullSecrets or registry credentials for all Aperium, MCP, LibreOffice, and model-serving images.
+- PodDisruptionBudgets for backend, every deployed MCP service, model serving, PostgreSQL, Redis, and Qdrant where HA is expected.
+
+## Where to go next
+
+<Steps>
+  <Step title="Configuration">
+    Review the baseline application env contract and the capability-routing-disabled tool loading settings. See [Configuration](/deployment/on-prem/configuration).
+  </Step>
+  <Step title="MCP services">
+    Set up each `aperium-mcp-<connector>` as an in-cluster HTTP service, wire backend routing, and run the smoke gates. See [MCP services](/deployment/on-prem/mcp-services).
+  </Step>
+  <Step title="Local LLM">
+    Stand up the local OpenAI-compatible model server and connect it through the dedicated local provider. See [Local LLM](/deployment/on-prem/local-llm).
+  </Step>
+  <Step title="Security and observability">
+    Apply TLS, NetworkPolicy, audit logging, and dashboard/alert requirements. See [Security and observability](/deployment/on-prem/security-observability).
+  </Step>
+  <Step title="Deployment gates">
+    Walk the pre-production and production readiness gates before going live. See [Deployment gates](/deployment/on-prem/gates).
+  </Step>
+</Steps>

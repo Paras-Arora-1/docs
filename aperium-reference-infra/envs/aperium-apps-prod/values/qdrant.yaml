@@ -1,0 +1,37 @@
+podLabels:
+  owner: data-ai
+
+# Qdrant Helm Chart Values for Aperium Production environment.
+# Keep ingress disabled for now (Aperium prod uses Gateway API and has no ingress-nginx deployment).
+ingress:
+  enabled: false
+
+persistence:
+  size: 20Gi
+
+resources:
+  requests:
+    cpu: 500m
+    memory: 1Gi
+  limits:
+    cpu: 1000m
+    memory: 2Gi
+
+updateStrategy:
+  type: OnDelete
+
+env:
+  - name: QDRANT__SERVICE__API_KEY
+    valueFrom:
+      secretKeyRef:
+        name: qdrant-api-keys
+        key: api-key
+  - name: QDRANT__SERVICE__READ_ONLY_API_KEY
+    valueFrom:
+      secretKeyRef:
+        name: qdrant-api-keys
+        key: read-only-api-key
+
+config:
+  cluster:
+    enabled: false

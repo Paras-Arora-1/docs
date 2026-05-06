@@ -1,0 +1,420 @@
+replicaCount: 0
+
+# NOTE: This values file documents the current Hillspire prod deployment shape,
+# including the dedicated scheduler and cleanup-job sections now supported by the
+# extracted chart templates in this reference package.
+
+image:
+  backendRepository: YOUR_GCP_REGION-docker.pkg.dev/YOUR_GCP_PROJECT_ID/aperium/backend
+  frontendRepository: YOUR_GCP_REGION-docker.pkg.dev/YOUR_GCP_PROJECT_ID/aperium/frontend
+  migrationsRepository: ""
+  tag: latest
+  pullPolicy: IfNotPresent
+
+service:
+  type: ClusterIP
+  port: 80
+
+serviceAccount:
+  create: true
+  name: ""
+  annotations: {}
+
+podAnnotations: {}
+podLabels: {}
+
+backend:
+  containerPort: 8080
+  env:
+    - name: PORT
+      value: "8080"
+    # The live deployment also sets most feature flags and MCP/retrieval routing via
+    # the aperium-backend-yml env-file payload. See docs/secret-contract.md.
+    - name: AGENT_INTELLIGENCE_SCHEDULER_ENABLED
+      value: "false"
+    - name: INVOICE_EXPORT_CLEANUP_RUNNER_MODE
+      value: cronjob
+    - name: FILE_CACHE_CLEANUP_RUNNER_MODE
+      value: cronjob
+    - name: TABULAR_POSTGRESQL_CLEANUP_RUNNER_MODE
+      value: cronjob
+    - name: MCP_SERVER_TRANSPORT_slack_workspace
+      value: http
+    - name: MCP_SERVER_URL_slack_workspace
+      value: http://aperium-mcp-slack-workspace:8081/mcp/
+    - name: MCP_SERVER_TIMEOUT_slack_workspace
+      value: 30s
+    - name: MCP_SERVER_TRANSPORT_atlassian
+      value: http
+    - name: MCP_SERVER_URL_atlassian
+      value: http://aperium-mcp-atlassian:8081/mcp/
+    - name: MCP_SERVER_TIMEOUT_atlassian
+      value: 30s
+    - name: MCP_SERVER_TRANSPORT_gcs_datalake
+      value: http
+    - name: MCP_SERVER_URL_gcs_datalake
+      value: http://aperium-mcp-gcs-datalake:8081/mcp/
+    - name: MCP_SERVER_TIMEOUT_gcs_datalake
+      value: 30s
+    - name: RETRIEVAL_SERVICE_URL
+      value: http://aperium-retrieval:8081
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+  probes:
+    liveness:
+      httpGet:
+        path: /health
+        port: http
+      initialDelaySeconds: 10
+      periodSeconds: 10
+      timeoutSeconds: 5
+      failureThreshold: 3
+    readiness:
+      httpGet:
+        path: /health
+        port: http
+      initialDelaySeconds: 5
+      periodSeconds: 10
+      timeoutSeconds: 5
+      failureThreshold: 6
+    startup:
+      enabled: false
+      httpGet:
+        path: /health
+        port: http
+      periodSeconds: 5
+      timeoutSeconds: 5
+      failureThreshold: 60
+
+worker:
+  enabled: false
+  replicas: 1
+  terminationGracePeriodSeconds: 600
+  strategy: {}
+  command:
+    - uv
+    - run
+    - python
+    - run_document_worker.py
+  extraEnv: []
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 1Gi
+  metrics:
+    enabled: false
+    port: 9464
+    service:
+      type: ClusterIP
+      annotations: {}
+    serviceMonitor:
+      enabled: false
+      endpoints:
+        - port: metrics
+          path: /metrics
+          interval: 30s
+          scrapeTimeout: 10s
+  autoscaling:
+    enabled: false
+    minReplicaCount: 1
+    maxReplicaCount: 5
+    pollingInterval: 5
+    cooldownPeriod: 300
+    query: >-
+      SELECT COUNT(*)::int FROM document_processing_jobs
+      WHERE status IN ('pending','processing')
+    targetQueryValue: "1"
+    activationTargetQueryValue: "0"
+    connectionFromEnv: DATABASE_URL
+    advanced: {}
+    connectionSecret:
+      create: true
+      key: DATABASE_URL
+      optional: false
+      refreshInterval: 5m
+      clusterSecretStoreName: ""
+      remoteRef:
+        key: ""
+
+scheduler:
+  enabled: false
+  replicas: 1
+  command:
+    - uv
+    - run
+    - python
+    - run_background_scheduler.py
+  extraEnv:
+    - name: AGENT_INTELLIGENCE_SCHEDULER_ENABLED
+      value: "true"
+    - name: MCP_SERVER_TRANSPORT_slack_workspace
+      value: http
+    - name: MCP_SERVER_URL_slack_workspace
+      value: http://aperium-mcp-slack-workspace:8081/mcp/
+    - name: MCP_SERVER_TIMEOUT_slack_workspace
+      value: 30s
+    - name: MCP_SERVER_TRANSPORT_atlassian
+      value: http
+    - name: MCP_SERVER_URL_atlassian
+      value: http://aperium-mcp-atlassian:8081/mcp/
+    - name: MCP_SERVER_TIMEOUT_atlassian
+      value: 30s
+    - name: MCP_SERVER_TRANSPORT_gcs_datalake
+      value: http
+    - name: MCP_SERVER_URL_gcs_datalake
+      value: http://aperium-mcp-gcs-datalake:8081/mcp/
+    - name: MCP_SERVER_TIMEOUT_gcs_datalake
+      value: 30s
+    - name: RETRIEVAL_SERVICE_URL
+      value: http://aperium-retrieval:8081
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 1Gi
+
+invoiceExportCleanup:
+  enabled: false
+  schedule: "0 * * * *"
+  suspend: false
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 3
+  backoffLimit: 1
+  activeDeadlineSeconds: 600
+  command:
+    - uv
+    - run
+    - python
+    - run_invoice_export_cleanup.py
+  extraEnv:
+    - name: INVOICE_EXPORT_CLEANUP_RUNNER_MODE
+      value: cronjob
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+
+fileCacheCleanup:
+  enabled: false
+  schedule: "10 * * * *"
+  suspend: false
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 3
+  backoffLimit: 1
+  activeDeadlineSeconds: 600
+  command:
+    - uv
+    - run
+    - python
+    - run_file_cache_cleanup.py
+  extraEnv:
+    - name: FILE_CACHE_CLEANUP_RUNNER_MODE
+      value: cronjob
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+
+postgresqlTabularCleanup:
+  enabled: false
+  schedule: "20 * * * *"
+  suspend: false
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 3
+  backoffLimit: 1
+  activeDeadlineSeconds: 600
+  command:
+    - uv
+    - run
+    - python
+    - run_postgresql_tabular_cleanup.py
+  extraEnv:
+    - name: TABULAR_POSTGRESQL_CLEANUP_RUNNER_MODE
+      value: cronjob
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+
+migrations:
+  enabled: false
+  cloudsqlRunConnectionTest: false
+  command:
+    - /bin/bash
+    - -c
+  args:
+    - >-
+      set -euo pipefail;
+      if [ -f /app/.env ]; then
+        set -a; . /app/.env; set +a;
+      fi;
+      uv run --no-sync alembic upgrade 20251211_0002;
+      if uv run --no-sync alembic upgrade head 2>&1 | tee /tmp/alembic_output.log; then
+        echo "[SUCCESS] Migrations completed";
+      else
+        echo "==========================================";
+        echo "[ERROR] MIGRATION FAILED!";
+        echo "==========================================";
+        echo "[ERROR] Alembic output:";
+        cat /tmp/alembic_output.log;
+        echo "==========================================";
+        echo "[ERROR] Current alembic version after failure:";
+        uv run --no-sync alembic current || true;
+        echo "[ERROR] Migration history:";
+        uv run --no-sync alembic history --verbose -r -3:current || true;
+        echo "==========================================";
+        exit 1;
+      fi
+  extraEnv: []
+  resources: {}
+  job:
+    backoffLimit: 1
+    activeDeadlineSeconds: 600
+    ttlSecondsAfterFinished: 300
+    hookDeletePolicy: BeforeHookCreation
+    disableRetry: false
+  extraVolumeMounts: []
+  extraVolumes: []
+
+frontend:
+  containerPort: 80
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      cpu: 200m
+      memory: 256Mi
+  probes:
+    liveness:
+      httpGet:
+        path: /
+        port: http
+      initialDelaySeconds: 10
+      periodSeconds: 10
+      timeoutSeconds: 5
+      failureThreshold: 3
+    readiness:
+      httpGet:
+        path: /
+        port: http
+      initialDelaySeconds: 5
+      periodSeconds: 10
+      timeoutSeconds: 5
+      failureThreshold: 3
+
+backendEnvSecret:
+  enabled: false
+  name: aperium-backend-yml
+  key: env
+  mountPath: /app/.env
+  subPath: .env
+
+externalSecret:
+  enabled: false
+  refreshInterval: 1h
+  clusterSecretStoreName: ""
+  targetName: aperium-backend-yml
+  remoteSecretName: aperium-backend-yml
+  secretKey: env
+
+qdrantApiKeysExternalSecret:
+  enabled: false
+  refreshInterval: 1h
+  clusterSecretStoreName: ""
+  targetName: qdrant-api-keys
+  remoteSecretName: qdrant-api-keys
+
+databaseUrlExternalSecret:
+  enabled: false
+  refreshInterval: 1h
+  clusterSecretStoreName: ""
+  targetName: aperium-app-db-url
+  remoteSecretName: aperium-app-db-url
+
+redisUrlExternalSecret:
+  enabled: false
+  refreshInterval: 1h
+  clusterSecretStoreName: ""
+  targetName: aperium-redis-url
+  remoteSecretName: aperium-redis-url
+
+cloudsql:
+  enabled: false
+  connectString: ""
+  runConnectionTest: true
+  port: 5432
+  image:
+    repository: gcr.io/cloud-sql-connectors/cloud-sql-proxy
+    tag: "2.14.1"
+    pullPolicy: IfNotPresent
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+
+sharedStorage:
+  enabled: false
+  mountPath: /shared
+  claimName: ""
+  createClaim: false
+  storageClassName: ""
+  accessModes:
+    - ReadWriteMany
+  size: 200Gi
+
+gatewayApi:
+  enabled: true
+  provider: gke
+  gateway:
+    name: public-gw
+    namespace: gateway-infra
+    listenerName: http
+  httpToHttpsRedirect:
+    enabled: false
+    listenerName: http
+    statusCode: 301
+  securityPolicyName: ""
+  iap:
+    enabled: false
+    clientID: ""
+    oauthSecretName: ""
+  backendPolicy:
+    timeoutSec: null
+  healthCheckPolicy:
+    enabled: false
+    requestPath: /health
+    checkIntervalSec: 15
+    timeoutSec: 15
+    healthyThreshold: 1
+    unhealthyThreshold: 2
+    logEnabled: false
+  azureWaf:
+    enabled: false
+    policyId: ""
+  hosts:
+    - name: aperium
+      host: www.apps.YOUR_DOMAIN
+      paths:
+        - path: /
+          pathType: PathPrefix
+          frontend: true
+        - path: /api
+          pathType: PathPrefix
+          frontend: false
+        - path: /ws
+          pathType: PathPrefix
+          frontend: false

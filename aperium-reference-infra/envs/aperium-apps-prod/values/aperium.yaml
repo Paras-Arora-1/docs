@@ -1,0 +1,238 @@
+replicaCount: 1
+
+image:
+  backendRepository: YOUR_GCP_REGION-docker.pkg.dev/YOUR_GCP_PROJECT_ID/aperium/backend
+  frontendRepository: YOUR_GCP_REGION-docker.pkg.dev/YOUR_GCP_PROJECT_ID/aperium/frontend
+  tag: sha-b083825
+
+serviceAccount:
+  annotations:
+    iam.gke.io/gcp-service-account: aperium-k8s@YOUR_GCP_PROJECT_ID.iam.gserviceaccount.com
+
+podAnnotations:
+  reloader.stakater.com/auto: "true"
+
+backend:
+  env:
+    - name: PROJECT_ID
+      value: YOUR_GCP_PROJECT_ID
+    - name: TABULAR_BIGQUERY_PROJECT
+      value: YOUR_GCP_PROJECT_ID
+    - name: TABULAR_BIGQUERY_DATASET
+      value: aperium_tabular
+    - name: TABULAR_BIGQUERY_LOCATION
+      value: US
+    - name: PORT
+      value: "8080"
+    - name: DOCUMENT_PROCESSING_MODE
+      value: worker
+    - name: DOCUMENT_WORKER_LEASE_SECONDS
+      value: "300"
+    - name: SHARING_GCS_BUCKET
+      value: YOUR_SHARING_BUCKET_NAME
+    - name: SHARING_GCS_PROJECT
+      value: YOUR_GCP_PROJECT_ID
+    - name: QDRANT_MODE
+      value: server
+    - name: QDRANT_HOST
+      value: qdrant.qdrant.svc.cluster.local
+    - name: QDRANT_PORT
+      value: "6333"
+    - name: QDRANT_API_KEY
+      valueFrom:
+        secretKeyRef:
+          name: qdrant-api-keys
+          key: api-key
+    # Route MCP calls over in-cluster HTTP transport.
+    - name: MCP_SERVER_TRANSPORT_common
+      value: http
+    - name: MCP_SERVER_URL_common
+      value: http://aperium-mcp-common.aperium.svc.cluster.local:8081/mcp
+    - name: MCP_SERVER_TIMEOUT_common
+      value: 30s
+    - name: MCP_SERVER_TRANSPORT_odoo
+      value: http
+    - name: MCP_SERVER_URL_odoo
+      value: http://aperium-mcp-odoo.aperium.svc.cluster.local:8081/mcp
+    - name: MCP_SERVER_TIMEOUT_odoo
+      value: 30s
+    - name: MCP_SERVER_TRANSPORT_google_workspace
+      value: http
+    - name: MCP_SERVER_URL_google_workspace
+      value: http://aperium-mcp-google-workspace.aperium.svc.cluster.local:8081/mcp
+    - name: MCP_SERVER_TIMEOUT_google_workspace
+      value: 30s
+    - name: MCP_AUTH_TOKEN
+      valueFrom:
+        secretKeyRef:
+          name: aperium-mcp-common
+          key: mcp_auth_token
+  probes:
+    liveness:
+      periodSeconds: 10
+      timeoutSeconds: 5
+      failureThreshold: 6
+    readiness:
+      periodSeconds: 10
+      timeoutSeconds: 5
+      failureThreshold: 6
+    startup:
+      enabled: true
+      periodSeconds: 5
+      timeoutSeconds: 5
+      failureThreshold: 120
+  resources:
+    requests:
+      cpu: "500m"
+      memory: "3Gi"
+    limits:
+      cpu: "1"
+      memory: "4Gi"
+
+worker:
+  enabled: true
+  replicas: 2
+  terminationGracePeriodSeconds: 600
+  extraEnv:
+    - name: DOCUMENT_WORKER_LEASE_SECONDS
+      value: "300"
+    - name: DOCUMENT_WORKER_BATCH_SIZE
+      value: "2"
+    - name: DOCUMENT_WORKER_CONCURRENCY
+      value: "2"
+    - name: BACKGROUND_PROCESSING_CONCURRENCY
+      value: "2"
+    - name: TABULAR_BIGQUERY_PROJECT
+      value: YOUR_GCP_PROJECT_ID
+    - name: TABULAR_BIGQUERY_DATASET
+      value: aperium_tabular
+    - name: TABULAR_BIGQUERY_LOCATION
+      value: US
+    - name: QDRANT_MODE
+      value: server
+    - name: QDRANT_HOST
+      value: qdrant.qdrant.svc.cluster.local
+    - name: QDRANT_PORT
+      value: "6333"
+    - name: QDRANT_API_KEY
+      valueFrom:
+        secretKeyRef:
+          name: qdrant-api-keys
+          key: api-key
+  resources:
+    requests:
+      cpu: "1500m"
+      memory: "3Gi"
+      ephemeral-storage: "2Gi"
+    limits:
+      cpu: "2"
+      memory: "6Gi"
+      ephemeral-storage: "2Gi"
+  metrics:
+    enabled: true
+    port: 9464
+    service:
+      type: ClusterIP
+      annotations: {}
+    serviceMonitor:
+      enabled: false
+      endpoints:
+        - port: metrics
+          path: /metrics
+          interval: 30s
+          scrapeTimeout: 10s
+  autoscaling:
+    enabled: true
+    minReplicaCount: 2
+    maxReplicaCount: 10
+    pollingInterval: 5
+    cooldownPeriod: 600
+    advanced:
+      horizontalPodAutoscalerConfig:
+        behavior:
+          scaleUp:
+            stabilizationWindowSeconds: 0
+            selectPolicy: Max
+            policies:
+              - type: Pods
+                value: 4
+                periodSeconds: 15
+              - type: Percent
+                value: 100
+                periodSeconds: 15
+          scaleDown:
+            stabilizationWindowSeconds: 900
+            policies:
+              - type: Percent
+                value: 100
+                periodSeconds: 15
+    targetQueryValue: "1"
+    activationTargetQueryValue: "0"
+    connectionSecret:
+      create: true
+      key: DATABASE_URL
+      optional: false
+      remoteRef:
+        key: aperium-keda-db-url
+
+migrations:
+  enabled: true
+
+externalSecret:
+  enabled: true
+  refreshInterval: 5m
+  clusterSecretStoreName: YOUR_CLUSTER_SECRET_STORE_NAME
+  targetName: aperium-backend-yml
+  remoteSecretName: aperium-backend-yml
+  secretKey: env
+
+qdrantApiKeysExternalSecret:
+  enabled: true
+  refreshInterval: 5m
+  clusterSecretStoreName: YOUR_CLUSTER_SECRET_STORE_NAME
+  targetName: qdrant-api-keys
+  remoteSecretName: qdrant-api-keys
+
+backendEnvSecret:
+  enabled: true
+  name: aperium-backend-yml
+  key: env
+
+cloudsql:
+  enabled: true
+  connectString: "YOUR_GCP_PROJECT_ID:YOUR_GCP_REGION:YOUR_CLOUDSQL_INSTANCE"
+  runConnectionTest: true
+  resources:
+    requests:
+      cpu: "1"
+      memory: "2Gi"
+
+gatewayApi:
+  enabled: true
+  gateway:
+    name: public-gw
+    namespace: gateway-infra
+  securityPolicyName: aperium-allowlist-policy
+  backendPolicy:
+    timeoutSec: 3600
+  healthCheckPolicy:
+    enabled: true
+    requestPath: /health
+    checkIntervalSec: 15
+    timeoutSec: 15
+    healthyThreshold: 1
+    unhealthyThreshold: 2
+    logEnabled: true
+  hosts:
+    - name: aperium
+      host: www.apps.YOUR_DOMAIN
+      paths:
+        - path: /
+          pathType: PathPrefix
+          frontend: true
+        - path: /api
+          pathType: PathPrefix
+          frontend: false
+        - path: /ws
+          pathType: PathPrefix
+          frontend: false

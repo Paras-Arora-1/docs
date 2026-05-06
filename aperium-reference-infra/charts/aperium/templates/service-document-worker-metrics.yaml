@@ -1,0 +1,21 @@
+{{- if and .Values.worker.enabled .Values.worker.metrics.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "aperium.workerFullname" . }}-metrics
+  labels:
+    {{- include "aperium.workerLabels" . | nindent 4 }}
+  {{- with .Values.worker.metrics.service.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  type: {{ .Values.worker.metrics.service.type | default "ClusterIP" }}
+  ports:
+    - name: metrics
+      port: {{ .Values.worker.metrics.port }}
+      targetPort: metrics
+      protocol: TCP
+  selector:
+    {{- include "aperium.workerSelectorLabels" . | nindent 4 }}
+{{- end }}

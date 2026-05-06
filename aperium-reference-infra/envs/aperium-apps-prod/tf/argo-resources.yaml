@@ -1,0 +1,8 @@
+argoCd:
+  namespace: argo-cd
+
+argoSync:
+  enabled: true
+  repoURL: https://github.com/YOUR_ORG/aperium-reference-infra.git
+  targetRevision: main
+  path: envs/aperium-apps-prod/argo

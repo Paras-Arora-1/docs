@@ -1,0 +1,39 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: prefect
+  namespace: argo-cd
+spec:
+  project: tools
+  sources:
+    - chart: prefect-server
+      repoURL: https://prefecthq.github.io/prefect-helm
+      targetRevision: 2026.2.12200748
+      helm:
+        valueFiles:
+          - $values/envs/aperium-apps-prod/values/prefect-server.yaml
+    - chart: prefect-worker
+      repoURL: https://prefecthq.github.io/prefect-helm
+      targetRevision: 2026.2.12200748
+      helm:
+        valueFiles:
+          - $values/envs/aperium-apps-prod/values/prefect-worker-aperium.yaml
+        releaseName: prefect-worker-aperium
+    - repoURL: https://github.com/YOUR_ORG/aperium-reference-infra.git
+      targetRevision: main
+      path: charts/prefect-resources
+      helm:
+        valueFiles:
+          - $values/envs/aperium-apps-prod/values/prefect-resources.yaml
+    - repoURL: https://github.com/YOUR_ORG/aperium-reference-infra.git
+      targetRevision: main
+      ref: values
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: prefect
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true

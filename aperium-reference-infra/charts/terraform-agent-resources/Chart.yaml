@@ -1,0 +1,6 @@
+apiVersion: v2
+name: terraform-agent-resources
+description: A Helm chart to deploy terraform agents, for access to private resources.
+type: application
+version: 0.1.0
+appVersion: "1.16.0"

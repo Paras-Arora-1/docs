@@ -1,0 +1,56 @@
+---
+title: "Custom integrations"
+description: "Add a connector that Aperium does not ship out of the box."
+icon: "code"
+---
+
+Aperium can be extended with custom MCP servers. The flow has two parts: register a custom MCP server through the admin API or admin onboarding flow, then enter tenant-specific credentials for it through the admin UI. Credentials are stored against the tenant in Aperium's database; they are not configured through environment variables.
+
+## Register a custom MCP server
+
+Aperium exposes admin-only endpoints for managing MCP servers:
+
+| Endpoint | Purpose |
+| --- | --- |
+| `GET /api/mcp-servers` | List the tenant's MCP servers. |
+| `POST /api/mcp-servers` | Create a custom MCP server. |
+| `GET /api/mcp-servers/{server_id}` | Get details for a server. |
+| `PATCH /api/mcp-servers/{server_id}` | Update a server. |
+| `DELETE /api/mcp-servers/{server_id}` | Delete a server. System servers return 403. |
+| `POST /api/mcp-servers/{server_id}/credentials` | Set or update the server's credentials. |
+| `DELETE /api/mcp-servers/{server_id}/credentials` | Delete the server's credentials. |
+
+A custom server is non-system, so it can be deleted by an admin once it is no longer needed.
+
+## Author the MCP server itself
+
+Aperium uses [FastMCP](https://github.com/jlowin/fastmcp) to host MCP servers. There are two supported transports:
+
+- **Script-based servers** run as standalone processes over stdio. The backend invokes a Python file (for example `mcp_servers/odoo.py`) and communicates with it through the MCP protocol.
+- **HTTP servers** are reached through the `is_http_mcp_transport` flag plus the `MCP_SERVER_TRANSPORT_*` and `MCP_SERVER_URL_*` routing environment variables. The bundled `make dev-local` recipe runs each connector behind a local HTTP wrapper (port 8081 and up) for sandbox parity.
+
+When you register a custom server, declare the credential field map it expects (URL, username, secret, and so on). Aperium uses that field map to render the admin form and to mark the server as configured or unconfigured once an admin enters values.
+
+<Tip>
+  Look at `aperium-checkout-2/backend/mcp_servers/registry.py` and any existing connector (for example `odoo.py` or `prefect.py`) for a working reference. The shape of a connector — a FastMCP app that exposes tools and reads its credentials at runtime — is the same regardless of which system you are connecting to. The credentials themselves are supplied by the tenant integration record, not by env vars on the pod.
+</Tip>
+
+## Wire credentials per tenant
+
+Credentials for a custom connector are entered through the same admin UI flows as any other integration:
+
+- The **admin onboarding flow**, the first time an admin signs in.
+- The **EditIntegrationModal** in the Admin Console's MCP Servers tab.
+
+Both surfaces sit on top of the tenant integrations API:
+
+- `PUT /api/tenant-integrations` upserts integrations for the tenant. Use `partial=true` to avoid deactivating integrations that are not in the payload.
+- `GET /api/tenant-integrations/{server_name}/edit-details` returns the non-secret fields and credential field map an admin needs to render an edit form.
+
+When an admin edits a tenant integration, the modal warns about how many users are affected and requires explicit confirmation. Changing the auth method or `extra_params` invalidates affected users' credentials so they can re-link.
+
+## Add it to the user interface
+
+Custom servers added through the admin API appear in the Admin Console's **MCP Servers** tab and on the user-facing Integrations page once they are registered and reachable. The **Add MCP Server** button in the admin tab opens the connector configuration flow.
+
+{/* TODO: Add a step-by-step example of authoring and registering a small custom MCP server end to end. */}

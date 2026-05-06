@@ -1,0 +1,40 @@
+---
+title: "Security and observability"
+description: "TLS, NetworkPolicy, audit logs, and the dashboards and alerts an on-prem deployment must expose."
+icon: "shield"
+---
+
+## Security requirements
+
+- All ingress must use TLS.
+- Upstream credentials for every MCP connector must be stored in the approved secret manager and mounted only into the corresponding `aperium-mcp-<connector>` pod — never into the frontend, the backend, or other MCP pods.
+- MCP auth tokens must not be shared with the frontend.
+- NetworkPolicy must allow the backend to call each `aperium-mcp-<connector>` service and deny direct public access to `/mcp`.
+- MCP write tools must be restricted by Aperium MCP permissions and by the upstream system's service-account permissions.
+- Audit logs must identify user, tenant, agent, MCP server, tool name, request id, and write/read classification.
+- The local model endpoint must not be reachable from user networks or the public internet.
+- Egress to cloud LLM APIs must be blocked or explicitly exceptioned.
+
+## Observability requirements
+
+### Required dashboards (or equivalent views)
+
+- Backend request latency, websocket health, and error rate.
+- Per MCP service: `/healthz`, `/readyz`, tool count, request latency, and error rate.
+- Per MCP service: tool-call success/failure broken down by tool name and read/write classification.
+- Local model request latency, queue depth, tokens/sec, GPU memory, GPU utilization, and OOM count.
+- PostgreSQL connection pool usage, locks, migration status, and backup status.
+- Redis availability when multi-pod mode is enabled.
+- Qdrant availability when retrieval or memory features are enabled.
+
+### Required alerts
+
+- Backend unavailable.
+- Any MCP service readiness failing.
+- Any MCP service discovery status not OK.
+- Any MCP service auth failures.
+- Write-tool errors above threshold on any MCP service.
+- Local model readiness failing or GPU unavailable.
+- Local model latency above the agreed SLO.
+- PostgreSQL replication, backup, disk, or connection saturation issue.
+- Redis unavailable in multi-pod mode.

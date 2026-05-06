@@ -1,0 +1,35 @@
+# Dedicated Prefect worker for Aperium jobs.
+# This worker pulls jobs from the 'aperium-pool' work pool.
+# The pool itself must be created during bootstrap; see docs/deployment-order.md.
+
+fullnameOverride: prefect-worker-aperium
+
+worker:
+  image:
+    repository: YOUR_GCP_REGION-docker.pkg.dev/YOUR_GCP_PROJECT_ID/dockerhub-remote/prefecthq/prefect
+  revisionHistoryLimit: 3
+  apiConfig: selfHostedServer
+  config:
+    workPool: aperium-pool
+    baseJobTemplate:
+      existingConfigMapName: base-job-template
+  resources:
+    requests:
+      cpu: 100m
+      memory: 640Mi
+    limits:
+      cpu: "1"
+      memory: 2Gi
+  selfHostedServerApiConfig:
+    apiUrl: http://prefect-server.prefect.svc.cluster.local:4200/api
+    basicAuth:
+      enabled: true
+      existingSecret: prefect-admin-credentials
+
+serviceAccount:
+  # Standalone in this extracted package: create the worker SA directly so the
+  # Aperium worker does not depend on a default Prefect worker release.
+  create: true
+  name: prefect-worker
+  annotations:
+    iam.gke.io/gcp-service-account: prefect@YOUR_GCP_PROJECT_ID.iam.gserviceaccount.com

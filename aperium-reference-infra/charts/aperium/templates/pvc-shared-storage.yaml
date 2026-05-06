@@ -1,0 +1,17 @@
+{{- if and .Values.sharedStorage.enabled .Values.sharedStorage.createClaim }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ include "aperium.sharedStorageClaimName" . }}
+  labels:
+    {{- include "aperium.labels" . | nindent 4 }}
+spec:
+  accessModes:
+    {{- toYaml .Values.sharedStorage.accessModes | nindent 4 }}
+  resources:
+    requests:
+      storage: {{ .Values.sharedStorage.size | quote }}
+  {{- if .Values.sharedStorage.storageClassName }}
+  storageClassName: {{ .Values.sharedStorage.storageClassName | quote }}
+  {{- end }}
+{{- end }}

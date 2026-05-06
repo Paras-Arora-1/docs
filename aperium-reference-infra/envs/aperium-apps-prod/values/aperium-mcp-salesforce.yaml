@@ -1,0 +1,112 @@
+nameOverride: aperium-mcp-salesforce
+fullnameOverride: aperium-mcp-salesforce
+
+replicaCount: 0
+
+image:
+  repository: YOUR_GCP_REGION-docker.pkg.dev/YOUR_GCP_PROJECT_ID/aperium/backend
+  tag: sha-b083825
+
+app:
+  port: 8081
+  gracefulShutdownTimeoutSeconds: 90
+  keepAliveTimeoutSeconds: 2
+  preStop:
+    enabled: true
+    sleepSeconds: 20
+  livenessProbe:
+    timeoutSeconds: 5
+  readinessProbe:
+    timeoutSeconds: 5
+  startupProbe:
+    timeoutSeconds: 5
+
+terminationGracePeriodSeconds: 150
+
+minReadySeconds: 5
+
+strategy:
+  type: RollingUpdate
+  rollingUpdate:
+    maxUnavailable: 0
+    maxSurge: 1
+
+service:
+  port: 8081
+  sessionAffinity: ClientIP
+
+resources:
+  requests:
+    cpu: 250m
+    memory: 256Mi
+  limits:
+    cpu: 1
+    memory: 2Gi
+
+cloudsql:
+  # Scaffold default: keep disabled until Cloud SQL instance/connect string are ready.
+  enabled: false
+  connectString: "YOUR_GCP_PROJECT_ID:YOUR_GCP_REGION:YOUR_CLOUDSQL_INSTANCE"
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+
+serviceAccount:
+  create: false
+  name: aperium
+
+podLabels:
+  aperium.ai/workload-group: mcp-http
+
+affinity:
+  podAntiAffinity:
+    preferredDuringSchedulingIgnoredDuringExecution:
+      - weight: 100
+        podAffinityTerm:
+          labelSelector:
+            matchLabels:
+              aperium.ai/workload-group: mcp-http
+          topologyKey: kubernetes.io/hostname
+
+deploymentAnnotations:
+  reloader.stakater.com/auto: "true"
+
+extraEnv:
+  - name: MCP_SERVER_MODULE
+    value: mcp_servers.salesforce_http
+  - name: MCP_AUTH_TOKEN
+    valueFrom:
+      secretKeyRef:
+        name: aperium-mcp-salesforce
+        key: mcp_auth_token
+
+# Mount backend env file so the MCP service has DATABASE_URL, SENTRY_*, etc.
+extraVolumes:
+  - name: backend-env
+    secret:
+      secretName: aperium-backend-yml
+      items:
+        - key: env
+          path: .env
+
+extraVolumeMounts:
+  - name: backend-env
+    mountPath: /app/.env
+    subPath: .env
+
+secrets:
+  clusterSecretStoreName: YOUR_CLUSTER_SECRET_STORE_NAME
+  name: aperium-mcp-salesforce
+  authToken:
+    gcpSecretName: aperium-mcp-auth-token
+
+prometheus:
+  serviceMonitor:
+    enabled: false
+
+syncWaves:
+  deployment: "20"
+
+networkPolicy:
+  enabled: false

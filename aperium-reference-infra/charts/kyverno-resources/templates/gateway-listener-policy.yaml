@@ -1,0 +1,121 @@
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: gateway-listener-from-httproute
+  labels:
+    {{- include "kyverno-resources.labels" . | nindent 4 }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+    policies.kyverno.io/title: Add Gateway Listener from HTTPRoute
+    policies.kyverno.io/category: Gateway API
+    policies.kyverno.io/description: >-
+      Automatically adds/updates a listener on the shared Gateway when an
+      HTTPRoute with gke-gateway=true is created or updated, and removes it
+      when deleted. Listener names follow <namespace>-<routeName>.
+spec:
+  mutateExistingOnPolicyUpdate: true
+  background: true
+  rules:
+    - name: add-listener-on-httproute-create
+      skipBackgroundRequests: false
+      match:
+        any:
+          - resources:
+              kinds:
+                - HTTPRoute
+              operations:
+                - CREATE
+              selector:
+                matchLabels:
+                  {{- toYaml .Values.httpRouteSelector.matchLabels | nindent 18 }}
+      preconditions:
+        all:
+          - key: "{{`{{ request.object.spec.hostnames | length(@) }}`}}"
+            operator: GreaterThan
+            value: 0
+      mutate:
+        targets:
+          - apiVersion: gateway.networking.k8s.io/v1
+            kind: Gateway
+            name: {{ .Values.gateway.name }}
+            namespace: {{ .Values.gateway.namespace }}
+        patchesJson6902: |-
+          - op: add
+            path: /spec/listeners/-
+            value:
+              name: "{{`{{ request.object.metadata.namespace }}-{{ request.object.metadata.name }}`}}"
+              hostname: "{{`{{ request.object.spec.hostnames[0] }}`}}"
+              port: 443
+              protocol: HTTPS
+              allowedRoutes:
+                namespaces:
+                  from: All
+              tls:
+                mode: Terminate
+                certificateRefs:
+                  - kind: Secret
+                    group: ""
+                    name: "{{`{{ regex_replace_all('-route$', request.object.metadata.name, '') }}`}}{{ .Values.tls.secretSuffix }}"
+
+    - name: update-listener-on-httproute-update
+      skipBackgroundRequests: false
+      match:
+        any:
+          - resources:
+              kinds:
+                - HTTPRoute
+              operations:
+                - UPDATE
+              selector:
+                matchLabels:
+                  {{- toYaml .Values.httpRouteSelector.matchLabels | nindent 18 }}
+      mutate:
+        targets:
+          - apiVersion: gateway.networking.k8s.io/v1
+            kind: Gateway
+            name: {{ .Values.gateway.name }}
+            namespace: {{ .Values.gateway.namespace }}
+        foreach:
+          - list: "target.spec.listeners"
+            preconditions:
+              all:
+                - key: "{{`{{ element.name }}`}}"
+                  operator: Equals
+                  value: "{{`{{ request.object.metadata.namespace }}-{{ request.object.metadata.name }}`}}"
+            patchesJson6902: |-
+              - op: replace
+                path: "/spec/listeners/{{`{{ elementIndex }}`}}/hostname"
+                value: "{{`{{ request.object.spec.hostnames[0] }}`}}"
+              - op: replace
+                path: "/spec/listeners/{{`{{ elementIndex }}`}}/tls/certificateRefs/0/name"
+                value: "{{`{{ regex_replace_all('-route$', request.object.metadata.name, '') }}`}}{{ .Values.tls.secretSuffix }}"
+
+    - name: remove-listener-on-httproute-delete
+      skipBackgroundRequests: false
+      match:
+        any:
+          - resources:
+              kinds:
+                - HTTPRoute
+              operations:
+                - DELETE
+              selector:
+                matchLabels:
+                  {{- toYaml .Values.httpRouteSelector.matchLabels | nindent 18 }}
+      mutate:
+        targets:
+          - apiVersion: gateway.networking.k8s.io/v1
+            kind: Gateway
+            name: {{ .Values.gateway.name }}
+            namespace: {{ .Values.gateway.namespace }}
+        foreach:
+          - list: "target.spec.listeners"
+            order: Descending
+            preconditions:
+              all:
+                - key: "{{`{{ element.name }}`}}"
+                  operator: Equals
+                  value: "{{`{{ request.oldObject.metadata.namespace }}-{{ request.oldObject.metadata.name }}`}}"
+            patchesJson6902: |-
+              - op: remove
+                path: "/spec/listeners/{{`{{ elementIndex }}`}}"

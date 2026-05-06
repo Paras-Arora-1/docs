@@ -1,0 +1,61 @@
+{{- $kedaCrdPresent := or (.Capabilities.APIVersions.Has "keda.sh/v1alpha1") (.Capabilities.APIVersions.Has "keda.sh/v1alpha1/ScaledObject") -}}
+{{- if and .Values.worker.enabled .Values.worker.autoscaling.enabled $kedaCrdPresent }}
+{{- $connectionSecretName := include "aperium.workerKedaConnectionSecretName" . }}
+{{- $connectionSecretKey := .Values.worker.autoscaling.connectionSecret.key }}
+{{- $remoteRefKey := .Values.worker.autoscaling.connectionSecret.remoteRef.key | default .Values.externalSecret.remoteSecretName }}
+{{- $storeName := .Values.worker.autoscaling.connectionSecret.clusterSecretStoreName | default .Values.externalSecret.clusterSecretStoreName }}
+{{- $refreshInterval := .Values.worker.autoscaling.connectionSecret.refreshInterval | default "5m" }}
+{{- if .Values.worker.autoscaling.connectionSecret.create }}
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: {{ $connectionSecretName }}
+  labels:
+    {{- include "aperium.workerLabels" . | nindent 4 }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "-2"
+spec:
+  refreshInterval: {{ $refreshInterval | quote }}
+  secretStoreRef:
+    kind: ClusterSecretStore
+    name: {{ $storeName | quote }}
+  target:
+    name: {{ $connectionSecretName }}
+    creationPolicy: Owner
+    template:
+      engineVersion: v2
+      type: Opaque
+      data:
+        {{ $connectionSecretKey }}: |-
+          {{ printf "{{ regexFind \"(?m)^DATABASE_URL=.*$\" .props | trimPrefix \"DATABASE_URL=\" | trim }}" }}
+  data:
+    - secretKey: props
+      remoteRef:
+        key: {{ $remoteRefKey | quote }}
+---
+{{- end }}
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata:
+  name: {{ include "aperium.workerFullname" . }}
+  labels:
+    {{- include "aperium.workerLabels" . | nindent 4 }}
+spec:
+  scaleTargetRef:
+    name: {{ include "aperium.workerFullname" . }}
+  minReplicaCount: {{ .Values.worker.autoscaling.minReplicaCount }}
+  maxReplicaCount: {{ .Values.worker.autoscaling.maxReplicaCount }}
+  pollingInterval: {{ .Values.worker.autoscaling.pollingInterval }}
+  cooldownPeriod: {{ .Values.worker.autoscaling.cooldownPeriod }}
+  {{- with .Values.worker.autoscaling.advanced }}
+  advanced:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  triggers:
+    - type: postgresql
+      metadata:
+        connectionFromEnv: {{ .Values.worker.autoscaling.connectionFromEnv | quote }}
+        query: {{ .Values.worker.autoscaling.query | quote }}
+        targetQueryValue: {{ .Values.worker.autoscaling.targetQueryValue | quote }}
+        activationTargetQueryValue: {{ .Values.worker.autoscaling.activationTargetQueryValue | quote }}
+{{- end }}

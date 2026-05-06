@@ -1,0 +1,19 @@
+{{- if and .Values.gatewayApi.enabled (eq (default "gke" .Values.gatewayApi.provider) "azure") .Values.gatewayApi.azureWaf.enabled .Values.gatewayApi.azureWaf.policyId }}
+{{- range .Values.gatewayApi.hosts }}
+apiVersion: alb.networking.azure.io/v1
+kind: WebApplicationFirewallPolicy
+metadata:
+  name: {{ printf "%s-%s-waf" (include "aperium.fullname" $) .name | trunc 63 | trimSuffix "-" }}
+  labels:
+    {{- include "aperium.labels" $ | nindent 4 }}
+spec:
+  targetRef:
+    group: gateway.networking.k8s.io
+    kind: HTTPRoute
+    name: {{ printf "%s-route" .name }}
+    namespace: {{ $.Release.Namespace }}
+  webApplicationFirewall:
+    id: {{ $.Values.gatewayApi.azureWaf.policyId | quote }}
+---
+{{- end }}
+{{- end }}

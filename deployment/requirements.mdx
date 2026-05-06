@@ -1,0 +1,29 @@
+---
+title: "Requirements"
+description: "Runtimes and services required to run Aperium."
+icon: "list-check"
+---
+
+## Runtimes
+
+- Python 3.11 or newer with the [uv](https://docs.astral.sh/uv/) package manager.
+- Node.js 18 or newer with npm.
+
+## Services
+
+- A PostgreSQL database for production. SQLite is supported as a fallback for local development.
+- At least one configured LLM provider (Anthropic, OpenAI, Google, Mistral, Vertex AI, Ollama, or Azure Foundry).
+- An OIDC identity provider such as Okta or Auth0 for SSO.
+
+## Production prerequisites (GCP)
+
+If you are running the supported production deployment on Google Cloud, you also need:
+
+- A GCP project for the shared apps environment.
+- A Terraform Cloud / HCP Terraform organization and workspaces.
+- Authority to delegate the parent DNS zone to the managed `apps.YOUR_DOMAIN` subdomain.
+- A GitHub App that ArgoCD can use for repository access (App ID, installation ID, and private key).
+
+For the full prerequisite list, see [GCP prerequisites](/deployment/gcp/prerequisites).
+
+{/* TODO: Add minimum CPU, memory, and disk recommendations once they are validated. */}

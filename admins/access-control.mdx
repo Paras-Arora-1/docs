@@ -1,0 +1,110 @@
+---
+title: "Access control"
+description: "Roles, groups, and MCP server permissions in Aperium."
+icon: "lock"
+---
+
+Aperium combines internal roles with group-based permissions. Roles set what an account can do across the platform; groups attach fine-grained MCP server policies and unit-level rules on top.
+
+## Roles
+
+Aperium recognizes four internal roles:
+
+| Role | Capabilities |
+| --- | --- |
+| `viewer` | Read-only access. Cannot make mutating changes. |
+| `user` | Standard end-user access to chat, agents, and integrations. |
+| `admin` | Tenant administrator. Can manage permissions, groups, users, integrations, MCP servers, and guardrails for a single tenant. |
+| `super_admin` | Cross-tenant administrator. Can switch the active tenant, manage every tenant, and is the only role that can grant the `super_admin` role to other users. |
+
+Admin endpoints are protected by an `AdminUser` dependency that requires `admin` or `super_admin`. A regular `admin` cannot escalate themselves or anyone else to `super_admin` — that path is fenced off in `PATCH /api/permissions/users/{user_id}/access`.
+
+## Tenant scoping
+
+Every admin operation runs against an effective tenant ID:
+
+- A regular `admin` always operates against their own tenant.
+- A `super_admin` selects an active tenant via the tenant switcher in the Admin Console. The choice is persisted and can be queried at `GET /api/permissions/tenants/active`.
+
+## Groups and external SSO groups
+
+Groups are the bridge between your identity provider and Aperium's permission model. Each Aperium group maps to an external group name (for example, an Okta or Auth0 group claim) and carries a display name and description.
+
+Admins manage groups from the **Permissions → Groups** sub-tab of the Admin Console. Behind that UI, the API supports:
+
+| Endpoint | Purpose |
+| --- | --- |
+| `POST /api/mcp-permissions/groups` | Create a group. |
+| `GET /api/mcp-permissions/groups` | List groups. |
+| `PATCH /api/mcp-permissions/groups/{group_id}` | Update a group. |
+| `DELETE /api/mcp-permissions/groups/{group_id}` | Delete a group. |
+| `POST /api/mcp-permissions/groups/{group_id}/users/{user_id}` | Add a user to a group. |
+| `DELETE /api/mcp-permissions/groups/{group_id}/users/{user_id}` | Remove a user from a group. |
+
+Users can also be assigned a role and groups directly via `PATCH /api/permissions/users/{user_id}/access`.
+
+## MCP server policies
+
+Each group can be granted access to specific MCP servers. A group's policy for a server has two main controls:
+
+- **`access_level`** — `none`, `read`, or `write`. Determines which operations the group can perform on the server.
+- **`global_credential_mode`** — `none`, `read_only`, or `read_write`. Determines whether group members can manage shared credentials for the server.
+
+Policies are managed through the **McpGroupPolicyDrawer** in the Admin Console and through:
+
+```http
+POST /api/mcp-permissions/groups/{group_id}/servers/{server_name}/policy
+```
+
+## Unit rules
+
+For connectors that expose distinct units of data (for example, individual BigQuery datasets), Aperium supports unit-level allow/deny rules layered on top of the group's server policy.
+
+- **`unit_type`** — Currently `scope`.
+- **`scope_key`** — The unit identifier (for example, a dataset name).
+- **`effect`** — `allow` or `deny`.
+
+Unit rule endpoints:
+
+| Endpoint | Purpose |
+| --- | --- |
+| `POST /api/mcp-permissions/groups/{group_id}/unit-rules` | Create a rule. |
+| `PATCH /api/mcp-permissions/groups/{group_id}/unit-rules/{rule_id}` | Update a rule. |
+| `DELETE /api/mcp-permissions/groups/{group_id}/unit-rules/{rule_id}` | Delete a rule. |
+
+{/* TODO: Document the conflict-resolution semantics when a user is in multiple groups whose unit rules disagree. */}
+
+## Pre-assignments (invites)
+
+Admins can pre-assign a role and groups to a user by email before the user has signed in. When the user authenticates for the first time, the pre-assignment is applied automatically.
+
+- `POST /api/mcp-permissions/preassignments` — Create a preassignment.
+- `PATCH /api/mcp-permissions/preassignments/{preassignment_id}` — Update.
+- `DELETE /api/mcp-permissions/preassignments/{preassignment_id}` — Revoke.
+
+The Admin Console exposes this through the **Permissions → Invites** sub-tab.
+
+## Permission tabs in the Admin Console
+
+The Permissions tab is organized into sub-tabs. Each surface in the UI is backed by API endpoints listed above.
+
+| Sub-tab | What it does |
+| --- | --- |
+| Overview | Summary of the current access configuration with warnings and pre-assignments. |
+| Groups | Create groups, edit display name and external group mapping, attach MCP server policies and unit rules. |
+| Users | Assign existing users to groups; edit role and group membership. |
+| Invites | Pre-assign roles and groups by email for users who have not yet signed in. |
+| Roles | Configure role-level MCP permissions. |
+| Audit log | Validation and change audit log. |
+
+## Simulating effective permissions
+
+Admins can preview what a user would see before applying a change:
+
+```http
+POST /api/mcp-permissions/simulate
+```
+
+This endpoint computes the effective MCP permissions for a user given their roles and external groups, which is useful for validating policy changes before saving them.
+
+{/* TODO: Add screenshots of the Permissions tabs and a worked example of designing a group hierarchy. */}
