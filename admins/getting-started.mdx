@@ -27,7 +27,7 @@ The console opens with the title **Admin Console** and the subtitle "Manage role
 
 <Steps>
   <Step title="Permissions">
-    Manage role-based access control, group-based access to MCP servers, user-to-group assignments, and pre-assignments for users who have not yet signed in. See [Access control](/admins/access-control).
+    Manage role-based access control, group-based access to MCP servers, user-to-group assignments, and pre-assignments for users who have not yet signed in. See [Access control](/admins/access-control/overview).
   </Step>
   <Step title="Guardrails">
     Configure input and output guardrail policies. Available when the `enableGuardrails` feature flag is on.
@@ -50,7 +50,7 @@ Most administrators bring a new tenant online in this order:
     Add the integrations Aperium will use. You can do this in two places: the **admin onboarding flow** the first time you sign in, or the **MCP Servers** tab in the Admin Console at any point afterward. Tenant-wide systems like Salesforce, NetSuite, and Odoo are configured by an admin once. OAuth-based connectors like Google Workspace, Slack, Atlassian, and Microsoft 365 are linked per-user from the Integrations page. See [Integrations overview](/admins/integrations/overview).
   </Step>
   <Step title="Set up access control">
-    Map your SSO groups to Aperium groups, attach MCP server policies, and configure unit-level allow/deny rules where you need them. See [Access control](/admins/access-control).
+    Map your SSO groups to Aperium groups, attach MCP server policies, and configure unit-level allow/deny rules where you need them. See [Access control](/admins/access-control/overview).
   </Step>
   <Step title="Pre-assign roles for incoming users">
     Use the **Invites** sub-tab under **Permissions** to pre-assign a role and group memberships to users by email. The assignment is applied automatically when the user first signs in.

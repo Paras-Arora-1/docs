@@ -1,0 +1,44 @@
+---
+title: "Invites"
+description: "Pre-assign a role and groups to a user before they sign in for the first time."
+icon: "envelope"
+---
+
+Invites let you decide a user's role and group memberships **before** they've signed in to Aperium. When the invited user authenticates for the first time, Aperium applies the role and groups automatically. This is the easiest way to get new hires landing in the right place on day one.
+
+Once a user has signed in, manage them from the [Users](/admins/access-control/users) sub-tab instead.
+
+<Frame caption="The Invites sub-tab.">
+  <img src="/images/admins/access-control/invites.png" alt="Invites sub-tab with an Invite user form (Email, Role, Groups, Create invite) and a Pending invites list showing four invited emails with their assigned role or group and a Revoke button each." />
+</Frame>
+
+## Sending an invite
+
+In the **Invite user** form at the top of the page:
+
+1. **Email.** Enter the email address the user will sign in with. This must match the email their identity provider hands back at sign-in time.
+2. **Role.** Choose **viewer** or **user**. Admin and super admin roles cannot be pre-assigned through invites; promote those users from the [Users](/admins/access-control/users) tab after they've signed in once.
+3. **Groups.** Optionally add one or more access groups. The user will join these groups the moment they sign in.
+4. Click **Create invite**.
+
+The invite shows up in the **Pending invites** list below.
+
+## What happens next
+
+- When the invited user signs in for the first time, Aperium matches their email against the pending invite, applies the role and groups, and marks the invite as consumed.
+- Group memberships from the invite stack with any groups the user gets from their IdP claim. The user ends up in the union.
+- Until the user signs in, the invite stays in the **Pending invites** list and you can still revoke or replace it.
+
+## Managing pending invites
+
+Use the **Search invites** field to filter by email. For each pending invite you can:
+
+- **Revoke.** Cancel the invite. The user will no longer get the pre-assignment if they sign in later. You can revoke and recreate freely; old invites don't block new ones.
+- **Re-create.** If you need to change the role or groups on an invite, revoke it and create a new one with the right values.
+
+## Notes
+
+- **Invites don't send email.** Aperium doesn't email the invited user. Tell them through your usual onboarding channel that they can sign in.
+- **Invites have no expiration by default.** A pending invite stays pending until it's revoked or consumed. If you want a hard cutoff, plan to revoke stale invites manually.
+- **Email matching is case-insensitive** but otherwise exact. If your IdP returns a different email format than what you typed (for example with vs. without a `+` alias), the invite won't match. Re-create with the format your IdP actually returns.
+- **Revoking a consumed invite has no effect.** Once consumed, the role and groups are part of the user's profile. To change them, edit the user from the [Users](/admins/access-control/users) tab.

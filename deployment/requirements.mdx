@@ -4,20 +4,58 @@ description: "Runtimes and services required to run Aperium."
 icon: "list-check"
 ---
 
+This page lists every runtime and external service Aperium relies on, marked as **required** or **optional**. Once you've decided what to run, see [Environment variables](/deployment/configuration) for the exact settings that wire each one up.
+
 ## Runtimes
 
-- Python 3.11 or newer with the [uv](https://docs.astral.sh/uv/) package manager.
-- Node.js 18 or newer with npm.
+- **Python 3.11 or newer** with the [uv](https://docs.astral.sh/uv/) package manager. Used to run the backend.
+- **Node.js 18 or newer** with npm. Used to build and serve the frontend.
+- **Docker / OCI runtime.** All production deployments ship as container images.
 
-## Services
+## Core services
 
-- A PostgreSQL database for production. SQLite is supported as a fallback for local development.
-- At least one configured LLM provider (Anthropic, OpenAI, Google, Mistral, Vertex AI, Ollama, or Azure Foundry).
-- An OIDC identity provider such as Okta or Auth0 for SSO.
+These are required for any production deployment.
+
+| Service | Required | Used for | Configured via |
+| --- | --- | --- | --- |
+| **PostgreSQL** (16 or newer) | Yes | The application database: tenants, users, agents, conversations, integration credentials, and the `tabular` schema for spreadsheet data. SQLite is no longer supported. | [Database](/deployment/configuration#database) |
+| **At least one LLM provider** | Yes | Calling Claude (or another supported model) for the agent loop. Pick **Anthropic API** or **AWS Bedrock**. Both can be enabled side by side. | [LLM providers](/deployment/configuration#llm-providers) |
+| **OIDC identity provider** | Yes | Single sign-on. Aperium supports Okta, Auth0, Microsoft Entra ID, and any other standards-compliant OIDC provider via the multi-tenant `AUTH_TENANTS_JSON` config. | OIDC tenant config (see your IdP's docs and the auth section of `backend/.env.example`) |
+| **MCP credential encryption key** | Yes | A 32-byte base64-encoded key used to encrypt every tenant integration credential at rest. Generate one per environment and treat it as a master secret. | [MCP runtime](/deployment/configuration#mcp-runtime) |
+| **Redis** (7 or newer) | Yes | Cross-pod WebSocket pub/sub, shared session state, agent config caching, and rate limiting. Required for any deployment running more than one backend pod, which is the default for production. | [Multi-pod and Redis](/deployment/configuration#multi-pod-and-redis) |
+| **Object storage or shared file storage** | Yes (one of the two) | A place to store uploaded files. Choose either a **Google Cloud Storage bucket** or a **shared RWX volume** mounted into every backend pod. | [File uploads and shared storage](/deployment/configuration#file-uploads-and-shared-storage) |
+
+## Recommended services
+
+These aren't strictly required to boot the app, but production deployments should plan to run them.
+
+| Service | Required | Used for | Configured via |
+| --- | --- | --- | --- |
+| **Qdrant** | Strongly recommended | Vector store for agent memories, document chunks, the experience library, workflow patterns, and tool semantic routing. Anything that uses retrieval, memory, or semantic tool selection needs this. | [Vector database (Qdrant)](/deployment/configuration#vector-database-qdrant) |
+| **SMTP server** | Recommended | Outbound email for invites, share notifications, and password resets. | [Email (SMTP)](/deployment/configuration#email-smtp) |
+| **Prefect** | Recommended for production | Durable orchestration for background jobs, scheduled tasks, and document workflows. Required for the agent intelligence scheduler and daily brief features. | Prefect server or Prefect Cloud (see `backend/.env.example`) |
+| **Tabular query backend** | Yes (PostgreSQL or BigQuery) | Backs the spreadsheet/CSV analytics feature. Most deployments use the same PostgreSQL instance as the application database; BigQuery is supported as an alternative when you already have data warehoused there. | [Tabular query backend](/deployment/configuration#tabular-query-backend) |
+| **LibreOffice render service** | Recommended | A small in-cluster HTTP service that recalculates Excel formulas and renders spreadsheet output. Most deployments need this because document and dashboard workflows commonly generate or rewrite Excel files. | `LIBREOFFICE_SERVICE_URL` (see on-prem [Configuration](/deployment/on-prem/configuration)) |
+
+## Optional services
+
+Each of these gates a specific feature. Skip the ones you don't need.
+
+| Service | Required | Used for | Configured via |
+| --- | --- | --- | --- |
+| **OpenTelemetry collector + Phoenix** | Optional | Trace collection and visualization for the agent loop and tool calls. Without this, the backend still runs but you lose first-class tracing. | [Tracing and observability](/deployment/configuration#tracing-and-observability) |
+| **Sentry** | Optional | Backend error tracking and performance monitoring. | [Sentry](/deployment/configuration#sentry) |
+| **GCP Cloud Profiler** | Optional | CPU and memory profiling for GCP-hosted backends. | `ENABLE_GCP_PROFILER` (see env reference) |
+| **Document worker pool** | Optional | Dedicated worker pods for high-volume document processing. Without this, processing runs inline in the API pod. | `DOCUMENT_PROCESSING_MODE`, `DOCUMENT_WORKER_*` (see env reference) |
+| **Tensorlake** | Optional | Cloud-hosted structured document extraction (tables, forms, complex PDFs) when the built-in document worker isn't enough. | `TENSLAKE_API_KEY` and related env vars |
+| **Local LLM server** | Required for on-prem with `ENABLE_LLM_FALLBACK=false` | An OpenAI-compatible inference server (vLLM, Ollama, Azure Foundry, or any other compatible endpoint) running inside your network boundary. Used when running fully on-prem without cloud LLM access. | [On-prem Local LLM](/deployment/on-prem/local-llm) |
+| **GPU node pool** | Required only when self-hosting the local LLM | Hosts the local model server in on-prem deployments. | [On-prem overview](/deployment/on-prem/overview) |
+| **Secrets management** | Recommended for production | A backing store for application secrets: GCP Secret Manager + External Secrets, HashiCorp Vault, Sealed Secrets, or any approved Kubernetes Secret pipeline. The MCP credential encryption key, database URL, and SMTP credentials all belong here. | [GCP secrets](/deployment/gcp/secrets) for the GCP path; on-prem uses your chosen backend |
+| **Ingress + TLS + WAF** | Yes for any externally reachable deployment | TLS termination on `/` and `/ws`, plus a WAF or firewall layer. On GCP this is GKE Gateway + Cloud Armor; on-prem it's whatever your platform provides. | [GCP overview](/deployment/gcp/overview), [On-prem overview](/deployment/on-prem/overview) |
 
 ## Production prerequisites (GCP)
 
-If you are running the supported production deployment on Google Cloud, you also need:
+If you're running the supported production deployment on Google Cloud, you also need:
 
 - A GCP project for the shared apps environment.
 - A Terraform Cloud / HCP Terraform organization and workspaces.
@@ -25,5 +63,9 @@ If you are running the supported production deployment on Google Cloud, you also
 - A GitHub App that ArgoCD can use for repository access (App ID, installation ID, and private key).
 
 For the full prerequisite list, see [GCP prerequisites](/deployment/gcp/prerequisites).
+
+## Where to set everything
+
+Once you have the services running, point Aperium at them through env vars. Every variable is documented on the [Environment variables](/deployment/configuration) page, grouped to match the sections above.
 
 {/* TODO: Add minimum CPU, memory, and disk recommendations once they are validated. */}

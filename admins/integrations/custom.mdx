@@ -1,56 +1,136 @@
 ---
 title: "Custom integrations"
-description: "Add a connector that Aperium does not ship out of the box."
+description: "Add a remote MCP server to Aperium so its tools become available to agents."
 icon: "code"
 ---
 
-Aperium can be extended with custom MCP servers. The flow has two parts: register a custom MCP server through the admin API or admin onboarding flow, then enter tenant-specific credentials for it through the admin UI. Credentials are stored against the tenant in Aperium's database; they are not configured through environment variables.
+## What is an MCP server
 
-## Register a custom MCP server
+An **MCP (Model Context Protocol) server** is a small service that exposes a set of tools, resources, or prompts over a standard protocol. Aperium's agents call those tools at runtime to read data, run actions, and integrate with whatever system the server is wired to. Anything an agent can do beyond pure reasoning (querying a database, sending an email, looking up a record in your internal app) is, under the hood, an MCP tool call.
 
-Aperium exposes admin-only endpoints for managing MCP servers:
+## How Aperium uses custom MCP servers
 
-| Endpoint | Purpose |
-| --- | --- |
-| `GET /api/mcp-servers` | List the tenant's MCP servers. |
-| `POST /api/mcp-servers` | Create a custom MCP server. |
-| `GET /api/mcp-servers/{server_id}` | Get details for a server. |
-| `PATCH /api/mcp-servers/{server_id}` | Update a server. |
-| `DELETE /api/mcp-servers/{server_id}` | Delete a server. System servers return 403. |
-| `POST /api/mcp-servers/{server_id}/credentials` | Set or update the server's credentials. |
-| `DELETE /api/mcp-servers/{server_id}/credentials` | Delete the server's credentials. |
+Aperium ships with built-in MCP servers for common SaaS systems (Google Workspace, Microsoft 365, Slack, Salesforce, NetSuite, BigQuery, Onyx, and so on). When you have a system that isn't on that list, the typical answer is: stand up your own MCP server in front of it, and register it in Aperium as a **custom integration**. The server can be hosted anywhere your agents can reach over HTTPS, and can implement whatever auth model fits your environment (no auth for an internal-only network, or per-user bearer tokens for systems that need user identity).
 
-A custom server is non-system, so it can be deleted by an admin once it is no longer needed.
+Once you've registered a custom MCP server, Aperium's agents see its tools the same way they see tools from any built-in connector. Permissions, audit logs, and tenant isolation all work the same way too.
 
-## Author the MCP server itself
+## Adding a custom MCP server
 
-Aperium uses [FastMCP](https://github.com/jlowin/fastmcp) to host MCP servers. There are two supported transports:
+There are two places an admin can add a remote MCP server: the **Admin Console** (any time after first sign-in) and the **admin onboarding flow** (the first time you sign in).
 
-- **Script-based servers** run as standalone processes over stdio. The backend invokes a Python file (for example `mcp_servers/odoo.py`) and communicates with it through the MCP protocol.
-- **HTTP servers** are reached through the `is_http_mcp_transport` flag plus the `MCP_SERVER_TRANSPORT_*` and `MCP_SERVER_URL_*` routing environment variables. The bundled `make dev-local` recipe runs each connector behind a local HTTP wrapper (port 8081 and up) for sandbox parity.
+## From the Admin Console
 
-When you register a custom server, declare the credential field map it expects (URL, username, secret, and so on). Aperium uses that field map to render the admin form and to mark the server as configured or unconfigured once an admin enters values.
+<Steps>
+  <Step title="Open the MCP Servers tab">
+    In the Admin Console, switch to the **MCP Servers** tab. The tab lists every configured server. Click **+ Add MCP Server** in the top-right corner of the **MCP Servers Management** panel.
 
-<Tip>
-  Look at `aperium-checkout-2/backend/mcp_servers/registry.py` and any existing connector (for example `odoo.py` or `prefect.py`) for a working reference. The shape of a connector — a FastMCP app that exposes tools and reads its credentials at runtime — is the same regardless of which system you are connecting to. The credentials themselves are supplied by the tenant integration record, not by env vars on the pod.
-</Tip>
+    <div style={{
+      overflow: "hidden",
+      borderRadius: "8px",
+      border: "1px solid rgba(0, 0, 0, 0.1)",
+      position: "relative",
+      marginTop: "1rem",
+      marginBottom: "0.5rem"
+    }}>
+      <img
+        src="/images/admins/integrations/custom/admin-console-add-button.png"
+        alt="Admin Console MCP Servers tab with the Add MCP Server button highlighted in the top right of the MCP Servers Management panel."
+        style={{
+          width: "100%",
+          display: "block",
+          transformOrigin: "87% 41%",
+          animation: "aperiumAddMcpZoom 9s ease-in-out infinite"
+        }}
+      />
+      <style>{`
+        @keyframes aperiumAddMcpZoom {
+          0%, 25% { transform: scale(1); }
+          50%, 70% { transform: scale(2.4); }
+          100% { transform: scale(1); }
+        }
+      `}</style>
+    </div>
 
-## Wire credentials per tenant
+    Here's a closer look at the button:
 
-Credentials for a custom connector are entered through the same admin UI flows as any other integration:
+    <Frame>
+      <img src="/images/admins/integrations/custom/admin-console-add-button-zoom.png" alt="Close-up of the Add Integration and Add MCP Server buttons in the MCP Servers Management header." />
+    </Frame>
+  </Step>
 
-- The **admin onboarding flow**, the first time an admin signs in.
-- The **EditIntegrationModal** in the Admin Console's MCP Servers tab.
+  <Step title="Fill in the Basics section">
+    The **Basics** section describes how the server appears across Aperium.
 
-Both surfaces sit on top of the tenant integrations API:
+    - **Display Name.** What admins and agent builders see (for example `My Amazing MCP`).
+    - **Name (ID).** A short, stable identifier used internally (for example `AmazingMCP`). Pick something you won't want to rename later.
+    - **Description.** Optional one-liner describing what the server is good for.
+    - **Enabled toggle.** Decides whether the server's tools load into agent context immediately. Leave it on for normal use; flip it off if you want to register the server but keep its tools out of agent reach for now.
 
-- `PUT /api/tenant-integrations` upserts integrations for the tenant. Use `partial=true` to avoid deactivating integrations that are not in the payload.
-- `GET /api/tenant-integrations/{server_name}/edit-details` returns the non-secret fields and credential field map an admin needs to render an edit form.
+    <Frame caption="The empty Add New MCP Server dialog.">
+      <img src="/images/admins/integrations/custom/admin-modal-empty.png" alt="Add New MCP Server dialog with empty Display Name, Name (ID), Description, Supported Template, and Remote URL fields, plus an Enabled toggle." />
+    </Frame>
+  </Step>
 
-When an admin edits a tenant integration, the modal warns about how many users are affected and requires explicit confirmation. Changing the auth method or `extra_params` invalidates affected users' credentials so they can re-link.
+  <Step title="Fill in the Connection section">
+    The **Connection** section tells Aperium where the MCP server lives and how to authenticate to it.
 
-## Add it to the user interface
+    - **Supported Template.** The auth shape Aperium should use when calling the server:
+      - **Remote HTTP MCP – No Auth.** For servers that live on a private network and don't require any token. Aperium reaches the server with no `Authorization` header. Best for in-cluster services that are already protected by NetworkPolicy.
+      - **Remote HTTP MCP – User Bearer Token.** Aperium attaches each user's per-user token as a `Bearer` token. Use this when your MCP server expects user identity, for example to enforce upstream permissions per user.
+    - **Remote URL.** The MCP endpoint URL. The path usually ends in `/mcp` (for example `https://my-amazing-mcp.com/mcp`). Validation runs when the server is saved, so the URL must be reachable from Aperium when you click **Create**.
 
-Custom servers added through the admin API appear in the Admin Console's **MCP Servers** tab and on the user-facing Integrations page once they are registered and reachable. The **Add MCP Server** button in the admin tab opens the connector configuration flow.
+    <Frame caption="The Add New MCP Server dialog filled out for a User Bearer Token server.">
+      <img src="/images/admins/integrations/custom/admin-modal-filled.png" alt="Add New MCP Server dialog with Display Name 'My Amazing MCP', Name (ID) 'AmazingMCP', a description, Supported Template set to Remote HTTP MCP - User Bearer Token, and Remote URL set to https://my-amazing-mcp.com/mcp." />
+    </Frame>
+  </Step>
 
-{/* TODO: Add a step-by-step example of authoring and registering a small custom MCP server end to end. */}
+  <Step title="Click Create">
+    Aperium validates the endpoint, registers the server against your tenant, and reloads the MCP Servers list. The new server appears with its display name, identifier, status pill, and tool count once tools are discovered.
+
+    From there it behaves like any other connector: agents can call its tools, the **Permissions** tab can grant group-level access, and the **Pencil** icon next to the row lets you edit or rotate settings later.
+  </Step>
+</Steps>
+
+## From the admin onboarding flow
+
+If you're setting Aperium up for the first time, you can register custom MCP servers during the onboarding flow without leaving it.
+
+<Steps>
+  <Step title="Click the Remote MCP Servers tile">
+    On the **Set your company's tools** screen, click the **Remote MCP Servers** tile.
+
+    <Frame caption="The Set your company's tools screen with a Remote MCP Servers tile.">
+      <img src="/images/admins/integrations/custom/onboarding-tools-grid.png" alt="Set your company's tools screen with a grid of category tiles including Email, Calendar, Messaging, ERP, CRM, Analytics, and a Remote MCP Servers tile in the bottom row." />
+    </Frame>
+  </Step>
+
+  <Step title="Open the Add remote MCP server form">
+    A modal opens listing every custom server you've added so far. Click **Add remote MCP server** to open the form. You can repeat this step to add as many servers as you need.
+
+    <Frame caption="The Remote MCP Servers modal with an entry to add a new server.">
+      <img src="/images/admins/integrations/custom/onboarding-add-server-card.png" alt="Remote MCP Servers modal with copy explaining customer-hosted servers and an Add remote MCP server entry with a plus button." />
+    </Frame>
+  </Step>
+
+  <Step title="Fill in the form">
+    The fields are the same as in the Admin Console flow, with one extra: the onboarding form also accepts a free-form **Description** that admins and users will see alongside the server.
+
+    - **Display name.** Shown across the UI.
+    - **Server key.** Stable identifier. Use lowercase with underscores (for example `customer_data_mcp`).
+    - **Remote URL.** The MCP endpoint, typically ending in `/mcp`.
+    - **Authentication.** Pick **Remote HTTP MCP – No Auth** or **Remote HTTP MCP – User Bearer Token**, matching what your server expects.
+    - **Description.** Optional context shown to admins and users.
+
+    <Frame caption="The Add remote MCP server form in the onboarding flow.">
+      <img src="/images/admins/integrations/custom/onboarding-add-server-form.png" alt="Add remote MCP server form with fields for Display name, Server key, Remote URL, Authentication, and Description, plus Cancel and Add server buttons." />
+    </Frame>
+
+    Click **Add server** and the server is saved immediately so Aperium can validate the endpoint. When you're done adding servers, click **Done** on the previous modal to return to the onboarding flow.
+  </Step>
+</Steps>
+
+## Editing a custom server later
+
+Whether you registered the server through onboarding or the Admin Console, you can edit it at any point from the **Admin Console, MCP Servers tab** by clicking the pencil icon next to the row. Aperium asks for confirmation before saving changes that would invalidate connected users (for example switching the auth template).
+
+Custom servers are non-system, so they can also be deleted from the same row when you no longer need them.

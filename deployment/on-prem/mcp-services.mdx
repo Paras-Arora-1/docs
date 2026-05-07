@@ -27,7 +27,7 @@ The Helm charts in `charts/aperium-mcp-common` define the shared service shape. 
 
 Connector credentials are not configured through Kubernetes env vars on the MCP pods. An admin enters them through the Aperium UI, either the **admin onboarding flow** on first sign-in or the **Admin Console's MCP Servers tab** afterward, and Aperium stores them encrypted against the tenant in the application database. The `aperium-mcp-<connector>` pod reads the credentials at runtime through Aperium, scoped to the calling tenant.
 
-For the per-connector field list (URL, username, client secret, and so on), see [Supported integrations](/admins/integrations/supported/overview).
+For the per-connector field list (URL, username, client secret, and so on), browse the **Supported integrations** group under [Integrations](/admins/integrations/overview).
 
 <Note>
   This means the on-prem deployment does **not** need ConfigMaps or Kubernetes Secrets per connector for upstream credentials. The shared platform secrets (`aperium-backend-yml`, `aperium-mcp-auth-token`, the database URL, the Qdrant API key, and so on) still apply. See the [GCP secret contract](/deployment/gcp/secrets) for the reference list, and substitute your on-prem secret backend (Vault, External Secrets, Sealed Secrets, or an approved Kubernetes Secret flow).
@@ -35,7 +35,7 @@ For the per-connector field list (URL, username, client secret, and so on), see 
 
 ## Backend routing
 
-For each deployed connector, the backend must route the connector to its in-cluster HTTP service:
+For each deployed connector, the backend must route the connector to its in-cluster HTTP service. These routing variables sit alongside the platform-level [MCP runtime](/deployment/configuration#mcp-runtime) settings:
 
 ```bash
 MCP_SERVER_TRANSPORT_<connector>=http

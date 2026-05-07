@@ -1,38 +1,292 @@
 ---
-title: "Configuration"
-description: "Environment variables for the backend and frontend."
+title: "Environment variables"
+description: "Environment variables for an Aperium deployment, grouped by purpose."
 icon: "gear"
 ---
 
-Aperium is configured through `backend/.env` and `frontend/.env`. These env files cover **infrastructure-level settings** — server bind addresses, the database URL, identity-provider configuration, and the routing layer for in-cluster MCP services.
+Aperium reads its configuration from environment variables on the backend pods. This page lists every variable a self-hosted deployment needs, grouped by what they control.
 
 <Note>
-  Connector credentials (Odoo, Salesforce, NetSuite, and so on) and OAuth client settings (Google Workspace, Slack, Atlassian, Microsoft 365) are **not** entered here. An admin enters them through the admin onboarding flow on first sign-in or through the Admin Console's MCP Servers tab afterward; Aperium stores them against the tenant. See [Supported integrations](/admins/integrations/supported/overview).
+  **Connector credentials are not configured here.** Anything connector-specific (Google Workspace, Slack, Atlassian, Microsoft 365, Odoo, Salesforce, NetSuite, BigQuery, Onyx, and so on) is entered by an admin through the admin onboarding flow on first sign-in or the **Admin Console's MCP Servers tab** afterward. Aperium stores those credentials encrypted against the tenant. See [Integrations](/admins/integrations/overview).
 </Note>
 
-## Backend
+## Application basics
 
-Common backend variables include:
+| Variable | Example | Purpose |
+| --- | --- | --- |
+| `APP_ENV` | `production` | Application environment label. Drives a few defaulted behaviors and shows up in logs and traces. |
+| `LOG_LEVEL` | `INFO` | Backend log level. Use `DEBUG` for noisy local debugging, `INFO` or `WARNING` in production. |
+| `SECRET_KEY` | `prod_secret_key` | Server-side secret used for signing internal tokens. Generate a long random string per environment and treat it as a credential. |
+| `CORS_ORIGINS` | `https://aperium.apps.your-company.com` | Comma-separated list of origins allowed to call the backend. Must include the frontend URL. |
 
-- `HOST`, `PORT`, `APP_ENV`
-- `DATABASE_URL` for PostgreSQL
-- Multi-tenant identity via `AUTH_TENANTS_JSON` (preferred) or the legacy `OKTA_*` variables
-- The MCP routing pair per in-cluster connector: `MCP_SERVER_TRANSPORT_<connector>` and `MCP_SERVER_URL_<connector>` (these point the backend at the right in-cluster MCP pod; they do **not** carry credentials)
+## Database
 
-{/* TODO: Confirm whether LLM provider API keys (ANTHROPIC_API_KEY, OPENAI_API_KEY, GOOGLE_API_KEY) are still backend-env-only or have moved into the admin UI alongside connector credentials. */}
+| Variable | Example | Purpose |
+| --- | --- | --- |
+| `DATABASE_TYPE` | `postgresql` | Database driver. PostgreSQL is the supported production option. |
+| `DATABASE_URL` | `postgresql://user:pass@host:5432/aperium` | SQLAlchemy connection URL for the application database. |
+
+## LLM providers
+
+Aperium supports calling Claude either through Anthropic's API directly or through **AWS Bedrock**. Pick whichever fits your security and procurement requirements (or run both side by side and select per-deployment with `PRIMARY_LLM_PROVIDER`).
+
+### Provider selection
+
+| Variable | Example | Purpose |
+| --- | --- | --- |
+| `PRIMARY_LLM_PROVIDER` | `anthropic` | Default provider for the main reasoning model. Use `anthropic` or `bedrock`. |
+| `PRIMARY_LLM_MODEL` | `claude-sonnet-4-6` | Default model used for the main agent loop. For Bedrock, use a Bedrock-style model ID such as `us.anthropic.claude-sonnet-4-6`. |
+| `SECONDARY_LIGHTWEIGHT_LLM_PROVIDER` | `anthropic` | Provider for cheaper/faster auxiliary calls (routing, classification, summarization). |
+| `SECONDARY_LIGHTWEIGHT_LLM_MODEL` | `claude-haiku-4-5` | Model for the lightweight auxiliary path. |
+
+### Anthropic API
+
+| Variable | Example | Purpose |
+| --- | --- | --- |
+| `ANTHROPIC_API_KEY` | `sk-ant-...` | Anthropic API key used to call Claude when `PRIMARY_LLM_PROVIDER=anthropic`. |
+
+### AWS Bedrock
+
+Set `BEDROCK_ENABLED=true` to register Bedrock as a provider, then either supply IAM keys explicitly or leave them blank to use the standard boto3 credential chain (env vars, `~/.aws/credentials`, instance profile, IRSA on EKS, etc.).
+
+| Variable | Example | Purpose |
+| --- | --- | --- |
+| `BEDROCK_ENABLED` | `true` | Master switch for the Bedrock provider. Defaults to `false`. |
+| `BEDROCK_AWS_REGION` | `us-west-2` | AWS region that hosts the Bedrock endpoint and inference profiles. |
+| `BEDROCK_AWS_ACCESS_KEY_ID` | `AKIA...` | IAM access key with `bedrock:InvokeModel` permission. Optional; falls back to the boto3 default chain when blank. |
+| `BEDROCK_AWS_SECRET_ACCESS_KEY` | secret | IAM secret key. Optional; falls back to the boto3 default chain when blank. |
+| `BEDROCK_AWS_SESSION_TOKEN` | secret | Session token for temporary credentials (STS). Leave blank if you're using long-lived keys or instance/IRSA credentials. |
+| `BEDROCK_DEFAULT_MODEL` | `us.anthropic.claude-sonnet-4-6` | Default Bedrock model ID used when no model is specified. |
+| `BEDROCK_MODELS` | `us.anthropic.claude-sonnet-4-6,us.anthropic.claude-haiku-4-5-20251001-v1:0` | Comma-separated allowlist of Bedrock model IDs available to the platform. Both inference profile IDs (`{region}.anthropic.claude-...`) and direct model IDs (`anthropic.claude-...`) are accepted. |
+| `BEDROCK_COST_MAP` | `us.anthropic.claude-sonnet-4-6:3.0:15.0` | Per-model cost tracking for usage reports, in `model:input_cost_per_M_tokens:output_cost_per_M_tokens` format. Comma-separate multiple entries. |
+| `BEDROCK_REQUEST_TIMEOUT` | `60` | Per-request timeout in seconds. Range 5 to 300. |
+
+Bedrock provider configuration is environment-driven only; there is no per-tenant override.
+
+### Other providers
+
+| Variable | Example | Purpose |
+| --- | --- | --- |
+| `GOOGLE_API_KEY` | `AIza...` | Google AI Studio key, used when calling Gemini-family models or Google embeddings. |
+
+## Token and context window budgets
+
+These caps control how Aperium splits the model's context window across the system prompt, tool schemas, conversation history, and tool results.
+
+| Variable | Example | Purpose |
+| --- | --- | --- |
+| `MODEL_MAX_TOKENS` | `200000` | Maximum context window Aperium plans against. |
+| `SYSTEM_PROMPT_TOKEN_RESERVE` | `2000` | Tokens reserved for the system prompt. |
+| `TOOLS_SCHEMA_TOKEN_RESERVE` | `30000` | Tokens reserved for advertising tool schemas to the model. |
+| `RESPONSE_TOKEN_RESERVE` | `8192` | Tokens reserved for the model's reply. |
+| `MAX_TOOL_RESULT_CHARS` | `80000` | Per-tool-call hard cap on returned content (in characters). Larger results are truncated. |
+| `LONG_CONTEXT_MODE` | `auto` | Whether to enable extended-context mode when the model supports it. `auto`, `on`, or `off`. |
+
+## Context management and loop detection
+
+| Variable | Example | Purpose |
+| --- | --- | --- |
+| `CONTEXT_MANAGEMENT_ENABLED` | `false` | Whether Aperium actively compacts conversation history when it nears the budget. |
+| `MAX_LOOP_PATTERN_REPEATS` | `9` | Maximum number of times Aperium will allow the same tool-call pattern to repeat before breaking the loop. |
+
+## Response streaming
+
+| Variable | Example | Purpose |
+| --- | --- | --- |
+| `ENABLE_RESPONSE_STREAMING` | `true` | Stream the model's reply to the frontend as it's generated. Recommended `true` in production. |
+
+## Prompt caching
+
+Prompt caching lets the model reuse a long static prefix (system prompt + tool schemas + skills) across requests so you only pay full price for the first hit.
+
+| Variable | Example | Purpose |
+| --- | --- | --- |
+| `ENABLE_PROMPT_CACHING` | `true` | Master switch for Anthropic prompt caching. |
+| `CACHE_TTL_TOOLS` | `1h` | TTL for the tools-schema cache block. |
+| `CACHE_TTL_SYSTEM_PROMPT` | `1h` | TTL for the system-prompt cache block. |
+| `CACHE_TTL_SKILLS` | `1h` | TTL for skills/instruction blocks. |
+| `CACHE_TTL_CONVERSATION` | `5m` | TTL for the conversation prefix cache. Short, since conversation grows quickly. |
+
+## MCP runtime
+
+These variables control how Aperium talks to MCP servers (both built-in connectors and any custom ones registered through the Admin Console). They do not contain connector credentials.
+
+| Variable | Example | Purpose |
+| --- | --- | --- |
+| `MCP_AUTH_MODE` | `enforce` | `enforce` requires every MCP call to carry a valid auth token. Use this in production. |
+| `MCP_CREDENTIAL_ENCRYPTION_KEY` | base64-encoded 32-byte key | Encrypts tenant integration credentials at rest. Generate one per environment and treat it as a master secret. |
+| `MCP_POOL_ENABLED` | `true` | Reuse MCP client connections across requests. |
+| `MCP_POOL_MAX_PER_SERVER` | `3` | Maximum pooled clients per MCP server. |
+| `MCP_POOL_IDLE_TIMEOUT` | `300` | Seconds an idle pooled client is kept before being closed. |
+| `MCP_POOL_KEEPALIVE_INTERVAL` | `60` | Keepalive ping interval (seconds) on long-lived MCP connections. |
+
+## Tool loading and routing
+
+Capability routing trims which tools are advertised to the model on each turn so context budget and latency stay reasonable when many MCP servers are connected.
+
+| Variable | Example | Purpose |
+| --- | --- | --- |
+| `TOOL_LOADING_CAPABILITY_ROUTING_ENABLED` | `true` | Turn on capability-based tool selection. |
+| `TOOL_LOADING_CAPABILITY_ROUTING_SHADOW_MODE` | `true` | When `true`, run capability routing alongside the full tool set and log differences without changing behavior. Use this to validate before flipping fully on. |
+| `TOOL_SEMANTIC_EMBEDDING_PROVIDER` | `sentence-transformers` | Provider used to embed tool descriptions for routing. |
+| `TOOL_SEMANTIC_EMBEDDING_MODEL` | `jinaai/jina-embeddings-v5-text-nano` | Specific embedding model used by the routing provider. |
+| `ENABLE_PARALLEL_TOOL_EXECUTION` | `false` | Allow the agent to call multiple tools in parallel within a single turn. |
+| `ENABLE_FORK_MODEL` | `false` | Enable the fork-model execution path for branched agent runs. |
+| `SEMANTIC_ROUTING_ENABLED` | `false` | Master switch for semantic routing of agent intents. |
+
+## Multi-pod and Redis
+
+If you run more than one backend pod, you must enable Redis so pods can share session state and broadcast notifications.
+
+| Variable | Example | Purpose |
+| --- | --- | --- |
+| `MULTI_POD_ENABLED` | `false` | Set to `true` whenever the backend runs with more than one replica. |
+| `REDIS_ENABLED` | `true` | Master switch for Redis-backed features. Required when `MULTI_POD_ENABLED=true`. |
+| `REDIS_URL` | `redis://10.55.1.11:6379` | Connection string for Redis. |
+| `REDIS_PUBSUB_CHANNEL_PREFIX` | `aperium:notifications` | Channel prefix Aperium uses for cross-pod notifications. |
+
+## Vector database (Qdrant)
+
+Used for retrieval, memory, and other features that need vector search.
+
+| Variable | Example | Purpose |
+| --- | --- | --- |
+| `VECTOR_DB_PROVIDER` | `qdrant` | Vector store backend. |
+| `QDRANT_MODE` | `server` | `server` for a managed Qdrant deployment, `local` for an embedded one. |
+| `QDRANT_HOST` | `qdrant.qdrant.svc.cluster.local` | Hostname of the Qdrant server. |
+| `QDRANT_API_KEY` | secret | API key for Qdrant. |
+
+## Tabular query backend
+
+Aperium can compute its tabular analytics either against PostgreSQL or against BigQuery. Choose one with `TABULAR_QUERY_BACKEND` and configure that backend's variables.
+
+| Variable | Example | Purpose |
+| --- | --- | --- |
+| `TABULAR_QUERY_BACKEND` | `postgresql` | `postgresql` or `bigquery`. |
+
+### PostgreSQL backend
+
+| Variable | Example | Purpose |
+| --- | --- | --- |
+| `TABULAR_POSTGRESQL_SCHEMA` | `tabular` | Schema name Aperium reads and writes tabular data into. |
+| `TABULAR_POSTGRESQL_QUERY_TIMEOUT_SECONDS` | `30` | Per-query timeout. |
+| `TABULAR_POSTGRESQL_LOCK_TIMEOUT_MS` | `1000` | Lock acquisition timeout in milliseconds. |
+| `TABULAR_POSTGRESQL_MAX_RESULT_ROWS` | `1000` | Hard cap on rows returned per query. |
+| `TABULAR_POSTGRESQL_MAX_BYTES_RETURNED` | `2000000` | Hard cap on bytes returned per query. |
+| `TABULAR_POSTGRESQL_SWEEPER_BATCH_SIZE` | `100` | Batch size used by the cleanup sweeper. |
+| `TABULAR_POSTGRESQL_CLEANUP_RUNNER_MODE` | `cronjob` | How the cleanup runner is scheduled (`cronjob` for a Kubernetes CronJob, otherwise an in-process scheduler). |
+
+### BigQuery backend
+
+| Variable | Example | Purpose |
+| --- | --- | --- |
+| `TABULAR_BIGQUERY_PROJECT` | `hs-apps-prod` | GCP project hosting the BigQuery dataset. |
+| `TABULAR_BIGQUERY_DATASET` | `aperium_tabular` | Dataset name. |
+| `TABULAR_BIGQUERY_LOCATION` | `US` | BigQuery location for the dataset. |
+
+## File uploads and shared storage
+
+Aperium needs a place to store uploaded files. Choose `local` (a shared RWX volume) or `gcs` (a Google Cloud Storage bucket) and configure the matching variables.
+
+| Variable | Example | Purpose |
+| --- | --- | --- |
+| `FILE_UPLOAD_STORAGE_BACKEND` | `local` | `local` or `gcs`. |
+| `FILE_UPLOAD_LOCAL_DIR` | `/shared` | Mount path for the shared volume when using local storage. |
+| `FILE_UPLOAD_LOCAL_IS_SHARED` | `true` | Set `true` when the local directory is mounted into every backend pod (required for multi-pod). |
+| `FILE_UPLOAD_GCS_BUCKET` | `aperium-prod` | GCS bucket name when using the GCS backend. |
+| `FILE_UPLOAD_GCS_PROJECT` | `hs-apps-prod` | GCP project owning the upload bucket. |
+| `FILE_UPLOAD_GCS_UPLOAD_PREFIX` | `uploads/` | Prefix used inside the bucket. |
+| `FILE_CACHE_CLEANUP_RUNNER_MODE` | `cronjob` | How file-cache cleanup runs (`cronjob` for a Kubernetes CronJob, otherwise in-process). |
+
+### Document processing
+
+| Variable | Example | Purpose |
+| --- | --- | --- |
+| `DOC_PROCESSOR_PDF_MAX_CONTENT_SIZE_MB` | `50` | Hard cap on the size of an uploaded PDF before processing. |
+
+## Sharing
+
+Used by the share-link feature.
+
+| Variable | Example | Purpose |
+| --- | --- | --- |
+| `SHARING_FRONTEND_URL` | `https://aperium.apps.your-company.com` | Public URL of the frontend, used to build share links. |
+| `SHARING_GCS_BUCKET` | bucket name | GCS bucket used for shared assets when sharing is backed by GCS. |
+| `SHARING_GCS_PROJECT` | project id | GCP project owning the sharing bucket. |
+
+## Email (SMTP)
+
+Used for notification emails and invitations.
+
+| Variable | Example | Purpose |
+| --- | --- | --- |
+| `SMTP_HOST` | `smtp.gmail.com` | SMTP server hostname. |
+| `SMTP_PORT` | `587` | SMTP port. |
+| `SMTP_USER` | `aperium@your-company.com` | Username for SMTP auth. |
+| `SMTP_PASSWORD` | secret | Password or app password. |
+| `SMTP_FROM_EMAIL` | `aperium@your-company.com` | "From" address on outgoing email. |
+| `SMTP_FROM_NAME` | `Aperium AI` | Display name on outgoing email. |
+| `SMTP_USE_TLS` | `true` | Use STARTTLS. |
+| `SMTP_USE_SSL` | `false` | Use implicit TLS instead of STARTTLS. Set one of `SMTP_USE_TLS` or `SMTP_USE_SSL`, not both. |
+
+## Tracing and observability
+
+Aperium emits OpenTelemetry traces for the agent loop and tool calls. Phoenix is the bundled trace UI.
+
+| Variable | Example | Purpose |
+| --- | --- | --- |
+| `ENABLE_TRACING` | `True` | Master switch for tracing. |
+| `TRACING_ENDPOINT` | `http://otel-collector.monitoring.svc.cluster.local:4318` | OTLP HTTP endpoint for the trace collector. |
+| `TRACING_STARTUP_MODE` | `deferred` | `deferred` initializes tracing lazily on the first span; `eager` initializes it at boot. |
+| `PHOENIX_API_KEY` | secret | API key used by the backend to authenticate to Phoenix. |
+
+## Sentry
+
+| Variable | Example | Purpose |
+| --- | --- | --- |
+| `SENTRY_ENABLED` | `true` | Master switch for Sentry error reporting. |
+| `SENTRY_DSN` | `https://...@sentry.io/...` | Sentry DSN for your project. |
+| `SENTRY_ENVIRONMENT` | `production` | Environment label attached to events. |
+| `SENTRY_WITH_LOCALS` | `true` | Include local variables on stack frames in Sentry events. |
+
+## Guardrails
+
+| Variable | Example | Purpose |
+| --- | --- | --- |
+| `GUARDRAILS_ENABLED` | `false` | Master switch for input/output guardrail policies. Editable from the Admin Console once enabled. |
+
+## Agent intelligence
+
+| Variable | Example | Purpose |
+| --- | --- | --- |
+| `AGENT_INTELLIGENCE_SCHEDULER_ENABLED` | `true` | Enables the background scheduler that runs proactive agent jobs. |
+
+## Embedding cache (multi-pod)
+
+When the backend runs with more than one replica, point Hugging Face and sentence-transformers at a shared volume so models aren't downloaded to every pod.
+
+| Variable | Example | Purpose |
+| --- | --- | --- |
+| `HF_HOME` | `/shared/hf-cache` | Cache directory used by Hugging Face downloads. |
+| `SENTENCE_TRANSFORMERS_HOME` | `/shared/hf-cache` | Cache directory used by the `sentence-transformers` library. |
+
+## Feature flags
+
+These toggle UI features. They can be flipped per environment.
+
+| Variable | Example | Purpose |
+| --- | --- | --- |
+| `GALLERY_ENABLED` | `true` | Show the gallery surface. |
+| `DASHBOARD_V2_ENABLED` | `false` | Switch to the v2 dashboard. |
+| `DAILY_BRIEF_ENABLED` | `true` | Enable the daily brief feature. |
+| `LYRA_DASHBOARD_ENABLED` | `true` | Enable Lyra, our newer and more powerful dashboard service. Recommended `true` for new deployments. |
 
 ## Frontend
 
-The frontend reads URLs and identity-provider configuration from environment variables prefixed with `VITE_`:
+The frontend reads URLs from environment variables prefixed with `VITE_`:
 
 ```bash
 VITE_API_URL=http://localhost:8080
 VITE_WEBSOCKET_URL=ws://localhost:8080/ws/chat
 VITE_FRONTEND_PORT=3002
 ```
-
-## Reference
-
-For the canonical, up-to-date list of infrastructure variables, see the project README at `aperium-checkout-2/README.md`.
-
-{/* TODO: Mirror the README env section here once the variable set stabilizes. */}

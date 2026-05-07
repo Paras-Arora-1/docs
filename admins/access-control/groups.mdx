@@ -1,0 +1,84 @@
+---
+title: "Groups and policies"
+description: "Create access groups and define what their members can do on each MCP server."
+icon: "users"
+---
+
+Groups are how you control access in Aperium. Every group has a **policy** that decides which MCP servers its members can read or write, and which datasets within those servers they're allowed to query. This page covers the day-to-day tasks: creating a group, editing its policy, and resolving "Needs review" items.
+
+<Note>
+  **Group policies can only restrict access, never grant it.** Aperium always honors the underlying system's permissions first. Setting a group to **Read + write** on Salesforce doesn't grant Salesforce access; it only authorizes Aperium to use whatever access the user (or the configured tenant credentials) already has in Salesforce. To remove an upstream permission, change it in the source system. Aperium policies are a way to scope or tighten what users do through Aperium, not a way to expand their reach.
+</Note>
+
+## The Groups sub-tab
+
+Open the **Admin Console** → **Permissions** → **Groups**. You'll see every access group your tenant has, along with how many server rules and scope rules each one has.
+
+<Frame caption="The Groups sub-tab listing every access group in the tenant.">
+  <img src="/images/admins/access-control/groups-list.png" alt="Groups sub-tab showing the heading 'Access groups', a Create a group input with an Add group button, a Search groups field, and rows for FPT Developers, Hillspire Finance, and Hillspire Legal Ops with their system keys, rule counts, and Edit name, Edit policy, and Delete buttons." />
+</Frame>
+
+From this screen you can:
+
+- **Create a group.** Type a name into the **Create a group** field and click **Add group**. Aperium derives a system key from the name (for example `Hillspire Finance` → `hillspire-finance`). The system key is what your identity provider's group claim must match for users to be enrolled automatically.
+- **Edit name.** Rename a group's display name. The system key stays the same so existing IdP mappings keep working.
+- **Edit policy.** Open the policy editor for the group (the topic of the next section).
+- **Delete.** Remove a group entirely. Members lose any access that came from this group. Other group memberships and roles aren't affected.
+- **Search groups.** Filter the list by name when you have many groups.
+
+Each row's summary line ("9 server rules · 1 scope rule · 1 extra explicit row") is a quick health indicator. If the numbers look wrong (for example a critical group has zero server rules), open the policy editor to investigate.
+
+## Editing a group's policy
+
+Click **Edit policy** on a group to open the policy editor. The editor is split into three sections.
+
+<Frame caption="The policy editor for the FPT Developers group.">
+  <img src="/images/admins/access-control/group-policy-editor.png" alt="FPT Developers policy editor showing per-server access rows (GCS Data Lake, Malbek CLM, Odoo ERP, Prefect Workflows, Salesforce CRM all set to Read only) with an Add server access control, a BigQuery datasets section listing hillspire-data-sandbox.mart_ims, and a Needs review section flagging atlassian as Personal credentials only. Cancel and Save changes buttons sit at the bottom." />
+</Frame>
+
+### 1. Per-server access
+
+The top of the editor lists every MCP server the group has a rule for. For each server you choose one of three access levels from the dropdown:
+
+| Access level | What members can do |
+| --- | --- |
+| **No access** | Tools from this server are not available to the group at all. |
+| **Read only** | Members can call read tools (search, list, fetch). Write tools are blocked. |
+| **Read + write** | Members can call every tool the server exposes, including writes (send, create, update, delete). |
+
+To add a server that's not in the list yet, use the **Add server access** dropdown at the bottom of this section. Pick the server, then choose the access level you want.
+
+A group doesn't need a rule for every server. If a group has no rule for, say, NetSuite, members of that group simply can't see NetSuite tools. To grant access, add a rule. To revoke access, set the level to **No access** or remove the row.
+
+### 2. Dataset and scope rules
+
+Some connectors expose multiple distinct units of data: BigQuery datasets, Postgres schemas, GCS data lake buckets. For these, the policy editor shows a dedicated section (for example **BigQuery datasets**) where you allowlist exactly which units the group can query.
+
+- Add a dataset to the list and members can query it.
+- Remove a dataset and the group loses access to it, even if their server access level is **Read + write**.
+- Datasets that aren't in the allowlist are invisible to the group.
+
+A note about merging across groups: if a user belongs to multiple groups, every dataset allowlisted by any of their groups becomes accessible to them. There's no deny semantic at this level; to keep a dataset private to one group, only allowlist it on that group.
+
+### 3. Needs review
+
+The **Needs review** panel surfaces servers whose policy state doesn't quite match runtime reality. You'll see entries here when:
+
+- The server is configured to require **personal credentials only**, but the group has been configured for shared/admin credentials. The fix is usually to set the server's row to **No access** (so members link their own credentials through the Integrations page) or to update the server itself.
+- The server has been removed from the tenant but the policy row is still there.
+- The combination of access level and credential mode for the server is invalid.
+
+Each row in **Needs review** has a **Remove** button to clear it after you've reconciled the underlying state. Items here don't crash agents at runtime, but they will lead to confusing access decisions if left alone.
+
+### Saving and canceling
+
+Once you're done, click **Save changes** to persist. Click **Cancel** to discard. Changes take effect for users on their next request and are recorded in the [Audit log](/admins/access-control/audit-log).
+
+## Designing groups
+
+A few things to think about when laying out groups for your tenant:
+
+- **Mirror your existing IdP groups** when you can. Aperium picks up new members automatically when their IdP claim matches a system key.
+- **Start coarse, then split.** It's easier to start with a small number of broad groups (`engineering`, `finance`, `ops`) and then carve out narrower ones (`finance-fp-and-a`, `finance-billing`) when a specific access pattern emerges.
+- **Use the Audit Log to validate changes.** After a big policy edit, watch the [Audit log](/admins/access-control/audit-log) to confirm the changes you intended.
+- **Resolve `Needs review` items quickly.** They're the most common source of "I can't see the tool I'm supposed to" support tickets.

@@ -4,6 +4,10 @@ description: "Ways to run Aperium in your environment."
 icon: "rocket"
 ---
 
+<Note>
+  This section applies only if you're running Aperium on your own infrastructure. We also offer a fully hosted version of Aperium that we operate for you. If that's what you're after, you can skip the deployment docs entirely and reach out to us to get set up.
+</Note>
+
 Aperium runs on Google Cloud through a Terraform, ArgoCD, and Helm setup against a GKE Autopilot cluster, or on an on-premises Kubernetes cluster with a local model server. Pick the path that matches your hosting model and security boundary.
 
 <Columns cols={2}>
@@ -16,8 +20,8 @@ Aperium runs on Google Cloud through a Terraform, ArgoCD, and Helm setup against
   <Card title="On-prem Kubernetes" icon="server" href="/deployment/on-prem/overview">
     Run inside your network boundary with in-cluster MCP services and a local LLM.
   </Card>
-  <Card title="Configuration" icon="gear" href="/deployment/configuration">
-    Environment variables for backend and frontend.
+  <Card title="Environment variables" icon="gear" href="/deployment/configuration">
+    Every backend and frontend env var, grouped by purpose.
   </Card>
 </Columns>
 

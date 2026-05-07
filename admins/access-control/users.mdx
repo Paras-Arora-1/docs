@@ -1,0 +1,68 @@
+---
+title: "Users"
+description: "Assign roles and group memberships to users who already belong to your tenant."
+icon: "user"
+---
+
+The **Users** sub-tab is where you manage the people who already have an account in your tenant. From here you can change someone's role, add them to (or remove them from) groups, and reset their onboarding flow if they need to see the welcome experience again.
+
+If a user hasn't signed in yet, use [Invites](/admins/access-control/invites) instead.
+
+<Frame caption="The Users sub-tab.">
+  <img src="/images/admins/access-control/users-list.png" alt="Users sub-tab showing the heading 'Existing users', a search input, and rows for individual users (Andrew Kurin, Collin Purcell, Eric Albanese, Hoang Pham, Huy Nguyen, Jonathan Zhukovsky) with their email, role dropdown (super_admin, admin, user), group multi-select, Save button, and Reset Onboarding button." />
+</Frame>
+
+## What you can do here
+
+For each user row:
+
+- **Change role.** Use the role dropdown to switch the user between **viewer**, **user**, and **admin**. Only an existing **super admin** can grant or revoke the **super admin** role.
+- **Add or remove groups.** Click the **Select groups** field and pick groups from the dropdown to add the user. Click the small `x` next to a group chip to remove it. The dropdown shows every access group available in your tenant.
+- **Save.** Click **Save** to commit the role and group changes for that user. The change is logged in the [Audit log](/admins/access-control/audit-log).
+- **Reset Onboarding.** Clears the user's onboarding completion flag. The next time they sign in, they'll see the welcome flow again. Useful when you want to re-onboard a user after a major release, or when someone reports they got stuck and want to re-run the onboarding.
+
+<Frame caption="Selecting groups to add to a user.">
+  <img src="/images/admins/access-control/user-groups-dropdown.png" alt="User row with the Select groups dropdown open, showing options fpt-developers, hillspire-finance, hillspire-legal-ops, and not-include-odoo." />
+</Frame>
+
+## Direct group assignments vs. SSO group claims
+
+There are two ways a user ends up in a group:
+
+- **From their identity provider's group claim.** When a user signs in, Aperium reads their group claim from the identity token and adds them to every Aperium group whose system key matches a name in that claim.
+- **From a manual assignment on this page.** Adding a user to a group through the **Select groups** field works regardless of whether their IdP claims that group.
+
+When both apply, both work. Manual assignments don't conflict with IdP-provided memberships; they add to them.
+
+If your IdP's group claim is the source of truth for your org, prefer using it and leaving manual assignments empty. If you have one-off cases where a user needs access their IdP doesn't reflect, manual assignment is the right escape hatch.
+
+## Searching for a user
+
+Type into the **Search users** field to filter by name or email. Useful when your tenant has hundreds of members.
+
+## Common workflows
+
+### A new admin needs to be promoted
+
+1. Search for the user by email.
+2. Change their role from **user** to **admin** in the role dropdown.
+3. Click **Save**.
+
+The user gains access to the Admin Console on their next request.
+
+### A user has changed teams
+
+1. Find the user.
+2. Remove the old team's group from their **Select groups** chips.
+3. Add the new team's group.
+4. Click **Save**.
+
+If your IdP claim is the source of truth, the cleaner workflow is to update the user's group memberships in your IdP and let Aperium pick that up at the next sign-in.
+
+### A user reports they're seeing the onboarding flow when they shouldn't
+
+That usually means their onboarding completion flag was reset. You can reset it again from this page if needed. If it keeps reverting, that's worth a support ticket.
+
+### A user wants to re-run onboarding (for example to revisit the welcome tour)
+
+Click **Reset Onboarding** on their row. The next time they sign in, they'll be taken through onboarding again.

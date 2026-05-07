@@ -1,7 +1,145 @@
 ---
 title: "BigQuery"
-description: "Connect Aperium to BigQuery dataset analytics."
+description: "Connect Aperium to BigQuery dataset analytics with scope-scoped SQL and schema tools."
 icon: "database"
 ---
 
-Coming soon.
+<Note>
+  Many organizations already run their own internal BigQuery MCP server with custom guardrails, query routing, or data-mesh metadata baked in. If that's you, register that server through Aperium's [Custom integrations](/admins/integrations/custom) flow instead of using this built-in connector. The rest of this page covers the built-in BigQuery connector that ships with Aperium.
+</Note>
+
+The built-in BigQuery integration gives agents read-only SQL access to a curated allowlist of datasets in your Google Cloud project. It exposes four tools: list configured scopes, list tables in a scope, describe a table's schema, and run a parameterized SQL query. Writes are not supported.
+
+## What you'll need
+
+- A Google Cloud project that contains the BigQuery datasets you want Aperium to read.
+- An admin account in that project that can enable APIs and grant IAM roles.
+- A decision about which connection method to use (see below).
+
+## Choose a connection method
+
+Aperium supports two ways to authenticate to BigQuery. The Connection Method dropdown in the admin form switches between them.
+
+<Card title="Application Default Credentials (ADC)" icon="server">
+  Aperium uses the identity of the environment it's running in (for example a GKE Workload Identity service account, a Compute Engine service account, or a `GOOGLE_APPLICATION_CREDENTIALS` env var). No service account JSON key needs to be uploaded. Best for self-hosted Aperium deployments running inside Google Cloud where you can attach an identity to the workload directly.
+</Card>
+
+<Card title="GCP Service Account JSON" icon="key">
+  An admin generates a service account key in Google Cloud and pastes the JSON into Aperium. Aperium stores the key encrypted against the tenant. Best when Aperium runs outside Google Cloud, when you want explicit per-tenant credential isolation, or when attaching an environment identity isn't an option.
+</Card>
+
+The query behavior, scope allowlist, and tools are identical for both methods; only the authentication path differs.
+
+## Setup
+
+<Steps>
+  <Step title="Enable the BigQuery API">
+    In the [Google Cloud Console](https://console.cloud.google.com), select the project that owns the datasets you want Aperium to read. Open **APIs & Services** and enable the **BigQuery API** if it isn't already on. From the command line:
+
+    ```bash
+    gcloud services enable bigquery.googleapis.com --project=<your-gcp-project-id>
+    ```
+  </Step>
+
+  <Step title="Grant the required IAM roles">
+    Aperium's BigQuery identity (whether ADC or a service account) needs two IAM roles:
+
+    - **BigQuery Data Viewer** (`roles/bigquery.dataViewer`) — list and read tables.
+    - **BigQuery Job User** (`roles/bigquery.jobUser`) — submit query jobs.
+
+    You can grant these at project level for simplicity, or at dataset level if you want to scope access to specific datasets.
+
+    **For ADC.** Identify the principal Aperium runs as (for example a GKE Workload Identity service account or the Compute Engine default service account) and grant the two roles to that principal.
+
+    **For service account JSON.** Create a dedicated service account in the project, grant the two roles, then create a JSON key:
+
+    ```bash
+    gcloud iam service-accounts create aperium-bigquery \
+      --display-name="Aperium BigQuery" \
+      --project=<your-gcp-project-id>
+
+    gcloud projects add-iam-policy-binding <your-gcp-project-id> \
+      --member="serviceAccount:aperium-bigquery@<your-gcp-project-id>.iam.gserviceaccount.com" \
+      --role="roles/bigquery.dataViewer"
+
+    gcloud projects add-iam-policy-binding <your-gcp-project-id> \
+      --member="serviceAccount:aperium-bigquery@<your-gcp-project-id>.iam.gserviceaccount.com" \
+      --role="roles/bigquery.jobUser"
+
+    gcloud iam service-accounts keys create aperium-bigquery-key.json \
+      --iam-account=aperium-bigquery@<your-gcp-project-id>.iam.gserviceaccount.com
+    ```
+
+    Keep the JSON key safe; you'll paste it into Aperium in the last step. Treat it like a secret.
+  </Step>
+
+  <Step title="Plan your query scopes">
+    A "scope" is one entry in an allowlist of datasets Aperium is allowed to query. Every BigQuery tool call must reference a scope by name. Plan one scope per dataset you want exposed.
+
+    Each scope needs four fields:
+
+    - `name` — A short identifier you'll see in tool calls (for example `sales`, `revops`).
+    - `project` — The GCP project that owns the dataset.
+    - `dataset` — The BigQuery dataset name.
+    - `location` — The dataset's BigQuery location (for example `US`, `EU`, `asia-southeast1`). Defaults to `US` if omitted, but it's safer to be explicit.
+
+    The form takes the scopes as a JSON array. Example:
+
+    ```json
+    [
+      {"name": "sales", "project": "acme-analytics", "dataset": "sales_data", "location": "US"},
+      {"name": "revops", "project": "acme-analytics", "dataset": "revenue_ops", "location": "US"}
+    ]
+    ```
+  </Step>
+
+  <Step title="Open the BigQuery setup form in Aperium">
+    Open Aperium and go to either the **admin onboarding flow** (first sign-in) or the **Admin Console's MCP Servers tab** (any time after). Open the **Connect Aperium to BigQuery** form. Set the **Connection Method** to whichever option you chose above, then fill in the rest of the form.
+  </Step>
+
+  <Step title="Fill in the form (Application Default Credentials)">
+    With **Connection Method** set to **Application Default Credentials**:
+
+    - **GCP Project ID.** The project where Aperium should run query jobs (for example `acme-analytics`).
+    - **Query Scopes (JSON).** The JSON array you planned in step 3.
+    - **Max Bytes Billed (optional).** A per-query budget cap in bytes. Leave blank to use the server default (5 GB).
+    - **Query Timeout (seconds, optional).** Leave blank to use the server default (30 seconds, max 600).
+    - **Max Result Rows (optional).** Leave blank to use the server default (500 rows).
+
+    Click **Enable**. No service account key field appears in this mode; Aperium reads its identity from the runtime environment.
+
+    <Frame caption="The BigQuery setup form with Application Default Credentials selected.">
+      <img src="/images/admins/integrations/bigquery/connect-form-adc.png" alt="Connect Aperium to BigQuery form with Connection Method set to Application Default Credentials and fields for GCP Project ID, Query Scopes JSON, Max Bytes Billed, Query Timeout, and Max Result Rows. A note explains ADC uses the environment's built-in identity." />
+    </Frame>
+  </Step>
+
+  <Step title="Fill in the form (GCP Service Account)">
+    With **Connection Method** set to **GCP Service Account**:
+
+    - **GCP Project ID, Query Scopes, Max Bytes Billed, Query Timeout, Max Result Rows.** Same as the ADC method.
+    - **Service Account JSON.** Paste the entire JSON key you downloaded in step 2 (the file should start with `{"type": "service_account", ...}`).
+
+    Click **Enable**. Aperium stores the JSON encrypted against your tenant.
+
+    <Frame caption="The BigQuery setup form with GCP Service Account selected.">
+      <img src="/images/admins/integrations/bigquery/connect-form-service-account.png" alt="Connect Aperium to BigQuery form with Connection Method set to GCP Service Account and the same configuration fields plus a Service Account JSON field where the admin pastes the service account key." />
+    </Frame>
+  </Step>
+</Steps>
+
+## What agents can do
+
+Once configured, agents can call four tools:
+
+- **List scopes.** Get the allowlist of datasets they're allowed to query.
+- **List tables.** List tables inside a chosen scope.
+- **Describe table.** Inspect a table's schema (columns, types, descriptions).
+- **Run SQL.** Execute a read-only SQL query against a chosen scope, capped by Max Bytes Billed, Query Timeout, and Max Result Rows.
+
+Writes (`INSERT`, `UPDATE`, `DELETE`, `MERGE`, `CREATE`, `DROP`) are blocked at the SQL parser layer, so agents can't mutate data through this connector even if a scope's IAM role would otherwise allow it.
+
+## Notes
+
+- **Editing scopes.** To add or remove datasets from the allowlist later, open the **Admin Console's MCP Servers tab** and click the pencil icon next to BigQuery to update the **Query Scopes** JSON.
+- **Multiple projects.** If your scopes span multiple GCP projects, the **GCP Project ID** field is the project Aperium uses to bill query jobs. Make sure the BigQuery identity has the BigQuery Job User role in that project.
+- **Key rotation.** If you used the service account method, rotate the JSON key periodically and re-paste the new key into the same form.

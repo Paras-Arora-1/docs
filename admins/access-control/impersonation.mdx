@@ -1,0 +1,59 @@
+---
+title: "Impersonation"
+description: "Act as another user temporarily to reproduce permission issues or debug user-reported bugs."
+icon: "user-secret"
+---
+
+Impersonation lets an admin send API and WebSocket requests **as if** they were a specific non-admin user, so you can see exactly what that user sees. It's the fastest way to reproduce permission issues, validate group policy changes, or debug a user-reported bug from inside their account.
+
+<Frame caption="The Impersonation panel at the top of the Admin Console.">
+  <img src="/images/admins/access-control/impersonation.png" alt="Top of the Admin Console showing the Tenant selector with Hillspire selected and an Impersonation panel with the description 'Act as a non-admin user for API and WebSocket requests. Admin targets are blocked.' plus a Select user dropdown and a Start Impersonation button." />
+</Frame>
+
+## How to start an impersonation session
+
+1. Open the **Admin Console**. The **Impersonation** panel is at the top, just below the tenant selector.
+2. In **Select user**, pick the user you want to impersonate. The dropdown lists every user in the active tenant who isn't an admin or super admin.
+3. Click **Start Impersonation**. Your subsequent API and WebSocket requests now run as that user.
+
+While impersonation is active, you'll see a banner at the top of the app indicating who you're acting as. Click **Stop Impersonation** there to end the session.
+
+## What impersonation can and can't do
+
+Impersonation runs every request through the impersonated user's permissions, not your own. That means:
+
+- **You see what they see.** Tools they can call, groups they're in, integrations they've linked. Exactly the same surface they get.
+- **You don't gain access.** If the impersonated user can't read BigQuery, you can't read BigQuery while impersonating them either. Impersonation is not a privilege escalation tool.
+- **Admin-only actions are blocked.** Anything that requires admin privileges (Admin Console writes, MCP server config changes, audit log access) is rejected while impersonating, because the impersonated user isn't an admin.
+- **Admin targets are blocked.** You can't impersonate another admin or super admin. The user dropdown only lists non-admin users.
+
+## What it logs
+
+Every impersonation session is recorded in the [Audit log](/admins/access-control/audit-log). Audit entries written during the session capture both the **acting admin** and the **impersonated user**, so the trail tells you who actually made the change as well as whose context it ran under.
+
+## Common workflows
+
+### "User X says they can't see the Salesforce CRM tool"
+
+1. Start impersonating user X.
+2. Open the Integrations page or start a chat that needs Salesforce.
+3. If the tool is missing, check user X's groups and group policies. Either add user X to a group with the right access level, or update the existing group's policy.
+4. Stop impersonation. Verify with user X that the issue is fixed.
+
+### "I'm rolling out a new group policy. Will it break access for the legal team?"
+
+1. Save the policy change.
+2. Impersonate a representative user from the legal team.
+3. Try the workflows that group depends on (search Confluence pages, run a Malbek lookup, whatever it is).
+4. If something is broken, adjust the policy and re-test before letting users feel it.
+
+### "Someone reported their agent is hallucinating tools that aren't there"
+
+1. Impersonate the user.
+2. Open the same agent and watch which tools the model is actually advertised. If you see ghost tools that the user shouldn't have, check the group policy that's exposing them.
+
+## Notes
+
+- **Use impersonation deliberately.** Even though admin targets are blocked, you're still running real requests against real upstream systems on the impersonated user's behalf. Anything you do (sending an email through Outlook tools, posting in Slack, writing to Salesforce) happens as that user, with their credentials, and they will see it.
+- **End sessions when you're done.** Leaving impersonation on means subsequent requests during that session are still being attributed to the impersonated user.
+- **Super admins** can impersonate users in any tenant they manage. Regular admins can only impersonate users in their own tenant.

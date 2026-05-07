@@ -4,7 +4,7 @@ description: "Baseline application env contract and tool-loading settings for on
 icon: "gear"
 ---
 
-Application secrets and environment settings must be delivered consistently to the backend, worker, scheduler, migration, and MCP workloads that need them.
+Application secrets and environment settings must be delivered consistently to the backend, worker, scheduler, migration, and MCP workloads that need them. The variables on this page are the on-prem-specific baseline; for the full env reference, see [Environment variables](/deployment/configuration).
 
 ## Required baseline env contract
 
@@ -29,11 +29,11 @@ LIBREOFFICE_SERVICE_URL=http://aperium-libreoffice.<namespace>.svc.cluster.local
 DOCUMENT_PROCESSING_MODE=worker
 ```
 
-Substitute `<namespace>` with the namespace where each in-cluster service is deployed.
+Substitute `<namespace>` with the namespace where each in-cluster service is deployed. Each variable above is documented in detail under [Database](/deployment/configuration#database), [Multi-pod and Redis](/deployment/configuration#multi-pod-and-redis), [File uploads and shared storage](/deployment/configuration#file-uploads-and-shared-storage), [Tabular query backend](/deployment/configuration#tabular-query-backend), and [Vector database (Qdrant)](/deployment/configuration#vector-database-qdrant).
 
 ## Tool loading with capability routing disabled
 
-This deployment shape assumes full allowed-scope tool loading instead of request-time capability selection. Set the following so the backend hydrates the expected tool set on every request:
+This deployment shape assumes full allowed-scope tool loading instead of request-time capability selection. Set the following so the backend hydrates the expected tool set on every request (see [Tool loading and routing](/deployment/configuration#tool-loading-and-routing) for context):
 
 ```bash
 TOOL_LOADING_CAPABILITY_ROUTING_ENABLED=false
