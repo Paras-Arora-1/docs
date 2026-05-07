@@ -1,0 +1,91 @@
+---
+title: "Policies"
+description: "Every guardrail policy in your tenant, with stage, type, priority, action, and mode."
+icon: "list-check"
+---
+
+The **Policies** tab is the working list of every guardrail in your tenant. From here you create new policies, edit existing ones, change a policy's mode (Monitor / Enforce / Disabled), and search across all of them.
+
+<Frame caption="The Policies tab listing every guardrail in the tenant.">
+  <img src="/images/admins/guardrails/policies.png" alt="Policies tab showing a header with a Create Policy button, a counter '10 total · 8 enforcing · 2 monitoring', filter controls (Search policies, All Stages, All Types, All Modes), and rows for Jailbreak Detection (Input, Built-in, priority 10, action block, mode Enforce), Permission Validation (Tool, Built-in, priority 10, action block, mode Enforce), PII Detection (Output, Built-in, priority 10, action redact, mode Enforce), Data Leakage Prevention (Output, Built-in, priority 20, action redact, mode Enforce), and Prompt Injection (Input, Built-in, priority 20, action block, mode Enforce)." />
+</Frame>
+
+## Reading a row
+
+Each row condenses a policy into six attributes:
+
+- **Policy.** Display name plus a one-line description and the scope (`Global` or a specific agent).
+- **Stage.** When the policy runs: `Input`, `Tool`, or `Output`. See the [Overview](/admins/guardrails/overview) for what each stage covers.
+- **Type.** `Built-in` for the bundled policies that ship with Aperium, or `Custom` for ones your team authored.
+- **Priority.** A number that controls evaluation order. **Lower runs first.** Built-ins use `10`, `20`, `30`. Use the same scale for custom policies so the relative ordering stays predictable.
+- **Action.** What the policy will do when it matches: `block`, `redact`, `warn`, `confirm`, or `allow`.
+- **Mode.** `Enforce`, `Monitor`, or `Disabled`. The dropdown lets you toggle the mode without leaving the list.
+
+The header counter (`10 total · 8 enforcing · 2 monitoring`) reflects the same totals as the dashboard.
+
+## Filtering
+
+Four controls narrow the list:
+
+- **Search policies.** Free-text search across name and description.
+- **All Stages.** Filter to Input, Tool, or Output.
+- **All Types.** Filter to Built-in or Custom.
+- **All Modes.** Filter to Enforce, Monitor, or Disabled.
+
+Combine filters freely. A common one is `All Modes → Monitor` to find every policy still being tuned.
+
+## Creating a policy
+
+Click **+ Create Policy** at the top right. There are two paths:
+
+- **Start from a template.** Recommended for almost every case. The [Templates](/admins/guardrails/templates) tab lists every starter and lets you pick one. You'll be able to edit the controls (action, sensitivity, extra patterns) before saving.
+- **Build a custom policy.** Create one from scratch using the policy editor. You'll specify the stage, the action, the priority, the scope (global or per-agent), and the matching rules (regex patterns or a condition rule).
+
+Save in **Monitor** mode by default. Watch the dashboard for several days, then promote.
+
+## Editing an existing policy
+
+Click a row to open the policy editor. Inside you can change:
+
+- **Display name and description.** What admins see.
+- **Stage and priority.** Rare to change; doing so reorders evaluation.
+- **Scope.** `Global` (every agent in the tenant) or restricted to specific agents.
+- **Action.** What happens on a match.
+- **Mode.** `Enforce`, `Monitor`, or `Disabled`.
+- **Policy-specific controls.** For example, a regex pattern list, a sensitivity level dropdown, or a rate-limit threshold. The controls available depend on the policy type. See [Templates](/admins/guardrails/templates) for the controls each built-in template exposes.
+
+Save and the new configuration takes effect on the next request. Built-in policies can have their config changed but cannot be deleted; you can disable them if you really don't want them.
+
+## Promoting from Monitor to Enforce
+
+The most common reason to revisit a policy is to promote it once you're confident it's tuned. Two ways:
+
+- From the Policies tab, switch the **Mode** dropdown on the row from **Monitor** to **Enforce** and save.
+- From the editor, change the mode and save.
+
+Either way the change is logged in the audit log (with `[MONITOR]` removed from new events going forward) and takes effect immediately.
+
+## Priority and order of evaluation
+
+Within a stage, policies run in priority order: **lower number first**. Policies at the same priority run in parallel. If any non-modifying policy returns Block or Confirm, evaluation halts and the rest of the stage is skipped.
+
+Modifying actions (Redact, Modify) chain together within a priority level: each modifying policy sees the output of the previous one. This is how PII Detection and Data Leakage Prevention can both redact different patterns in the same response.
+
+## Built-in policies you'll see by default
+
+A new tenant ships with these built-in policies pre-installed (some Enforced, some in Monitor for tuning):
+
+| Stage | Policy | Default action | Default mode |
+| --- | --- | --- | --- |
+| Input | Jailbreak Detection | block | Enforce |
+| Input | Prompt Injection | block | Enforce |
+| Input | Content Filtering | block | Enforce |
+| Input | Rate Limiting | block | Monitor |
+| Input | Input Validation | block | Monitor |
+| Tool | Permission Validation | block | Enforce |
+| Tool | Dangerous Operation Detection | confirm | Enforce |
+| Output | PII Detection | redact | Enforce |
+| Output | Data Leakage Prevention | redact | Enforce |
+| Output | Response Validation | block | Monitor |
+
+You can change the action or mode of any of these from the policy editor. They map one-to-one with entries on the [Templates](/admins/guardrails/templates) tab if you want to read the full description of what each one does.

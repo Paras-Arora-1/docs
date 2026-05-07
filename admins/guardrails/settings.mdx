@@ -1,0 +1,72 @@
+---
+title: "Settings"
+description: "Tenant-wide defaults for guardrail evaluation: timeouts, audit retention, and the optional content classifier."
+icon: "gear"
+---
+
+The **Settings** tab holds the tenant-wide defaults that apply to every guardrail policy. Most settings have sensible defaults; you only need to revisit them if you're tuning latency, retention, or the optional second-pass classifier.
+
+<Frame caption="The Guardrails Settings tab.">
+  <img src="/images/admins/guardrails/settings.png" alt="Guardrail Settings showing Scope set to Global Default (all agents), a Maximum evaluation time slider at 5000 ms, an Audit retention input set to 365 days, an AI Content Classifier checkbox enabled with explanation about the OpenAI Moderation API, a Log monitor-mode events checkbox enabled, and a Block Notifications (Coming Soon) panel with an Enable notifications checkbox and Notification channel options email, slack, and none." />
+</Frame>
+
+## Scope
+
+The **Scope** dropdown decides which agents these defaults apply to:
+
+- **Global Default (all agents).** The tenant-wide settings used by every agent unless you've configured something more specific.
+- **Per-agent.** Pick a specific agent to override the global defaults for just that agent. Useful when one agent needs a longer evaluation budget or a different audit retention than the rest.
+
+Per-agent settings inherit from the global defaults; you only need to set the fields you want to override.
+
+## Maximum evaluation time
+
+A slider, in milliseconds. The default is **5000** (five seconds).
+
+If a policy's evaluation takes longer than this, the request is rejected and the timeout is recorded in the audit log. This protects user-perceived latency and stops a slow detector from holding up every chat. Most regex policies finish in under a millisecond; the only thing that ever gets near the timeout is the optional content classifier (described below).
+
+## Audit retention
+
+How long audit log entries are kept before they're automatically deleted. Default **365 days**.
+
+Lower this if you want to reduce storage. Raise it if you have a longer compliance window. The platform-wide retention job uses the deployment's `GUARDRAILS_AUDIT_RETENTION_DAYS` env var as the floor; per-tenant overrides further into the past will be added in a future release.
+
+## AI Content Classifier
+
+A checkbox that enables a **second detection layer** for the **Content Filtering** policy: the OpenAI Moderation API.
+
+- When **on**, Content Filtering does a regex match first (instant) and, if nothing matches, sends the input to the Moderation API. This catches paraphrased harmful content that pure regex misses.
+- The Moderation API is **free** and **fail-open**: if it's unreachable, evaluation continues with regex only and the request still proceeds. The classifier never blocks because of a network error.
+- When **off**, Content Filtering is regex-only.
+
+Leaving this on is a good default. Turn it off if you have outbound network restrictions that prevent calls to OpenAI's moderation endpoint.
+
+## Log monitor-mode events
+
+A checkbox that controls whether policies in **Monitor** mode write to the audit log.
+
+- When **on** (default), every Monitor-mode evaluation is recorded with a `[MONITOR]` prefix and the original action that *would* have been taken. This is the data you use to tune a policy before promoting it to Enforce.
+- When **off**, Monitor-mode evaluations are silent. Useful when you have a chatty Monitor policy you don't want to clutter the audit log.
+
+You almost always want this on while a policy is being tuned. Turn it off only when you're confident a policy is going to stay in Monitor and you don't need the visibility.
+
+## Block Notifications *(Coming Soon)*
+
+A planned feature that will send a notification (email, Slack) when a policy in **Enforce** mode blocks a request. The form already exposes the channel selector (`email`, `slack`, `none`) and an enable checkbox so the wiring is in place; turning it on does not yet send notifications. Watch this page for when it's released.
+
+When it ships, notifications will be **fire-and-forget**: a failure to send will never block the underlying request.
+
+## Where things end up after you save
+
+- Settings changes apply on the next request without a restart.
+- Per-agent overrides take effect for that specific agent only; everything else continues using the global defaults.
+- Changes are recorded in the audit log alongside policy edits, so you can trace when retention or evaluation budget shifted.
+
+## Related env vars
+
+A few settings on this tab map to deployment env vars you can find on the [Environment variables](/deployment/configuration#guardrails) page:
+
+- `GUARDRAILS_ENABLED` — platform-wide on/off switch.
+- `GUARDRAILS_AUDIT_RETENTION_DAYS` — default audit retention used by the global retention job.
+
+Anything you set in this UI overrides the env defaults for your tenant.

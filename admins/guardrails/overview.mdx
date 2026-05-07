@@ -1,0 +1,80 @@
+---
+title: "Overview"
+description: "A configurable safety layer that sits on top of Aperium's existing security controls."
+icon: "shield-check"
+---
+
+Guardrails are an additional, **admin-configurable safety layer** that runs on top of every other security control Aperium already applies. They give your team a place to write tenant-specific rules: blocking dangerous inputs, redacting sensitive content from outputs, and gating destructive tool calls without writing any code.
+
+## Where guardrails sit in the stack
+
+When a user talks to an agent, every request passes through several layers before any data leaves Aperium. Guardrails are the **last admin-controlled layer** in that stack.
+
+1. **The underlying system's permissions.** Salesforce, NetSuite, BigQuery, Google Workspace, and every other connected system continue to enforce their own access controls on every tool call. Aperium can never grant access the user doesn't already have upstream.
+2. **Aperium's role and group policies.** [Roles and groups](/admins/access-control/overview) decide which MCP servers and datasets a user can touch. They can only narrow what the upstream system permits, never expand it.
+3. **The model's standard AI safety mechanisms.** Frontier model providers (Anthropic, AWS Bedrock) apply their own alignment and safety guardrails inside the model itself.
+4. **Aperium guardrails (this section).** A configurable policy layer that runs at every request, on top of all of the above. Admins decide what to block, redact, log, or confirm.
+
+A request must pass every layer to succeed. Guardrails are designed to make controls already in place stricter, never looser.
+
+## When guardrails fire
+
+Each policy belongs to one of three **stages**. The same request hits all three, in order:
+
+| Stage | When it runs | What it sees |
+| --- | --- | --- |
+| **Input** | Before the user's message reaches the model | The raw user input (jailbreak attempts, prompt injection, harmful content, rate limits) |
+| **Tool** | Before any tool or MCP call executes | The tool name, the arguments, the calling user, and whether the tool is "dangerous" |
+| **Output** | After the model produces a response, before it reaches the user | The full response text (PII, internal data leakage, response length) |
+
+A policy that triggers at **Input** stops the request before the model is ever invoked. A policy at **Tool** stops or redirects a single tool call without telling the model the call succeeded. A policy at **Output** can block, redact, or rewrite the response before it lands in the user's chat.
+
+## Modes: Monitor, Enforce, and Disabled
+
+Every policy runs in one of three modes:
+
+| Mode | Behavior | When to use |
+| --- | --- | --- |
+| **Enforce** | The policy actively blocks, redacts, or asks for confirmation. | Production. After tuning. |
+| **Monitor** | The policy still runs and logs everything it would have done, but **doesn't actually block anything**. The audit log records each event with a `[MONITOR]` prefix and the action that *would have been* taken. | Tuning new policies. Measuring false-positive rate against real traffic before going live. |
+| **Disabled** | The policy is skipped entirely. | Temporarily turning a policy off without deleting it. |
+
+A typical rollout: start in **Monitor**, watch the audit log for a week, fix false positives, then promote to **Enforce**.
+
+## Actions a policy can take
+
+When a policy matches, it can produce one of these actions:
+
+| Action | Effect |
+| --- | --- |
+| **Allow** | Request proceeds unchanged. (The default outcome when nothing matches.) |
+| **Block** | Request is rejected. The user sees an error message; the model is not invoked or the response is not delivered. |
+| **Redact** | Sensitive content is replaced in place (for example `[EMAIL REDACTED]`). The rest of the response continues. |
+| **Warn** | Request proceeds but a warning is logged and (when wired up) shown to the user. |
+| **Confirm** | The request is paused; the user must explicitly confirm before the action proceeds. Used by **Dangerous Operation Detection** for things like `drop_table`. |
+
+Actions that **modify** content (redact, transform) chain together: each modifying policy sees the output of the previous one within the same priority level.
+
+## Pages in this section
+
+<Steps>
+  <Step title="Dashboard">
+    The at-a-glance view of your guardrails: how many policies are active, how many events have been recorded, and which policies have triggered most often. See [Dashboard](/admins/guardrails/dashboard).
+  </Step>
+  <Step title="Policies">
+    The list of every policy in your tenant, with stage, type, priority, action, and mode. Create, edit, and toggle policies between Monitor and Enforce. See [Policies](/admins/guardrails/policies).
+  </Step>
+  <Step title="Templates">
+    Pre-built starting points (Jailbreak Detection, PII Detection, Content Filtering, and so on) you can drop into your tenant and tune. See [Templates](/admins/guardrails/templates).
+  </Step>
+  <Step title="Settings">
+    Tenant-wide defaults: evaluation timeout, audit retention, the optional second-pass content classifier, and whether monitor-mode events get written to the audit log. See [Settings](/admins/guardrails/settings).
+  </Step>
+</Steps>
+
+## Things to know up front
+
+- **Guardrails fail safe.** If a policy errors during evaluation, or evaluation runs past the configured timeout, the request is rejected. There's no "fail open by default" path that lets unsafe content through.
+- **Agents cannot bypass guardrails.** Policies are evaluated by the platform, not by the agent. An agent can't decide to ignore them.
+- **Guardrails are tenant-scoped.** Policies you configure apply only to your tenant. Super admins switch tenants from the top of the Admin Console to manage another tenant's guardrails.
+- **Guardrails can be turned off platform-wide** by setting `GUARDRAILS_ENABLED=false` in the deployment env. See [Environment variables](/deployment/configuration#guardrails). When off, the dashboard still renders but no policies evaluate.

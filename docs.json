@@ -24,6 +24,7 @@
           "deployment/requirements",
           {
             "group": "Google Cloud",
+            "icon": "cloud",
             "pages": [
               "deployment/gcp/overview",
               "deployment/gcp/prerequisites",
@@ -34,6 +35,7 @@
           },
           {
             "group": "On-prem Kubernetes",
+            "icon": "server",
             "pages": [
               "deployment/on-prem/overview",
               "deployment/on-prem/configuration",
@@ -52,6 +54,7 @@
           "admins/getting-started",
           {
             "group": "Integrations",
+            "icon": "plug",
             "pages": [
               "admins/integrations/overview",
               {
@@ -79,6 +82,7 @@
           },
           {
             "group": "Access control",
+            "icon": "lock",
             "pages": [
               "admins/access-control/overview",
               "admins/access-control/groups",
@@ -86,6 +90,17 @@
               "admins/access-control/invites",
               "admins/access-control/audit-log",
               "admins/access-control/impersonation"
+            ]
+          },
+          {
+            "group": "Guardrails",
+            "icon": "shield-check",
+            "pages": [
+              "admins/guardrails/overview",
+              "admins/guardrails/dashboard",
+              "admins/guardrails/policies",
+              "admins/guardrails/templates",
+              "admins/guardrails/settings"
             ]
           }
         ]

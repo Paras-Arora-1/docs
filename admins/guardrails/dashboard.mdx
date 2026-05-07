@@ -1,0 +1,67 @@
+---
+title: "Dashboard"
+description: "An at-a-glance view of guardrail health: active policies, recent activity, and the policies firing most often."
+icon: "gauge"
+---
+
+The **Dashboard** is the landing tab of the Guardrails section. It tells you, at a glance, whether your policies are healthy, what they're catching, and where you might need to tune.
+
+<Frame caption="The Guardrails Dashboard.">
+  <img src="/images/admins/guardrails/dashboard.png" alt="Guardrails Dashboard showing a banner '2 policies in Monitor mode waiting for review' with a Review Policies button, top metrics (10 active with 8 enforce and 2 monitor, 0 events, 0 blocked, no avg latency), an Event Breakdown card, a Top Triggered Policies card, a Recent Activity table with date filters and rows showing Response Validation, Data Leakage Prevention, PII Detection, and Dangerous Operation Detection events with action ALLOW, stages OUTPUT and TOOL, and reasons including [MONITOR] Would have been: allow, No data leakage detected, No PII detected in output, and Tool 'list_contracts' is not flagged as dangerous." />
+</Frame>
+
+## The header banner
+
+The yellow banner at the top of the page surfaces policies still in **Monitor** mode that haven't been promoted yet. Click **Review Policies** to jump straight to the [Policies](/admins/guardrails/policies) tab filtered to monitor-mode entries. This is the gentle nudge to finish a tuning cycle and either promote the policies to Enforce or disable them.
+
+## Top metrics
+
+Four counters summarize the state of the system:
+
+- **Active.** Total policies evaluating today, broken down into **E** (Enforce) and **M** (Monitor). Disabled policies are not counted.
+- **Events.** Number of audit log entries in the selected time window. Every Enforce decision is logged; Monitor decisions are logged unless you've turned off **Log monitor-mode events** in [Settings](/admins/guardrails/settings).
+- **Blocked.** Number of events whose action was **Block** in Enforce mode. Monitor blocks don't count here because they didn't actually block.
+- **Avg latency.** Average policy evaluation time in milliseconds across all events in the window. Use this to spot expensive policies; healthy values are typically single-digit milliseconds.
+
+The time-window selector in the top right (24h, 7d, 30d, All) reshapes every counter and chart on the page. Default is **7d**.
+
+## Charts
+
+- **Event Breakdown.** A breakdown of events by stage (Input, Tool, Output) and action (Allow, Block, Redact, Warn, Confirm). Lets you spot, for example, that 90% of your activity is happening at the Output stage.
+- **Top Triggered Policies.** A ranked list of the policies that matched most often in the window. Useful when you've just promoted a new policy and want to see how often it's firing.
+
+When there's no activity yet you'll see "No events recorded yet" and "No policies triggered yet" in these cards.
+
+## Recent activity
+
+The **Recent activity** table is the live feed of policy evaluations. Each row shows:
+
+- **Time** the event was recorded.
+- **Policy** that fired.
+- **Action** (`ALLOW`, `BLOCK`, `REDACT`, `WARN`, `CONFIRM`).
+- **Stage** (`INPUT`, `TOOL`, `OUTPUT`).
+- **Reason**, a short human-readable string. Monitor-mode rows are prefixed with `[MONITOR]` and include "Would have been: `<action>`" (for example "Would have been: block") so you can tell what would have happened in Enforce.
+
+Use the controls above the table to narrow the list:
+
+- **All Actions** — filter to a specific action.
+- The two **mm/dd/yyyy** date pickers — restrict to a custom date range.
+- **Apply Filters / Clear** — apply or reset.
+
+Click the small chevron at the right of any row to expand it and see the full event payload, including the user, agent, conversation, latency, and the snippet of input or output that triggered the rule.
+
+If you want a longer view (more rows than fit on the dashboard), click **View full log** in the top right of the section to open the full audit log.
+
+## Common workflows
+
+### "Did anything change yesterday?"
+
+Set the time window to **24h** and scan **Recent activity**. Sort by Action to surface anything that wasn't `ALLOW`.
+
+### "Is my new Monitor policy doing the right thing?"
+
+Filter Recent activity by the policy name. Look for `[MONITOR]` rows where the original action would have been Block. If those look like real violations, promote to Enforce. If they look like false positives, edit the policy and tune.
+
+### "Why is latency creeping up?"
+
+Compare **Avg latency** at 24h, 7d, and 30d. If it's rising, the **Top Triggered Policies** chart usually identifies the culprit (typically a policy that calls the optional content classifier in [Settings](/admins/guardrails/settings)).
